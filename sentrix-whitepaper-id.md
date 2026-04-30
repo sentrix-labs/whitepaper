@@ -3,7 +3,7 @@
 ### Blockchain Layer-One untuk Ekonomi Riil
 
 **Penulis:** Satya Kwok
-**Versi:** 1.1
+**Versi:** 1.2 (final kecuali ada hard fork chain)
 
 ---
 
@@ -413,16 +413,20 @@ Gambar 3 — Aliran pembagian fee
 
 ### 6.4 Premine dan Distribusi Awal
 
-Premine sebesar 63 juta SRX—20% dari cap pasokan—dialokasikan saat genesis di empat peran:
+Premine sebesar 63 juta SRX—20% dari cap pasokan—dialokasikan saat genesis di empat peran. Seluruh alamat alokasi bersifat publik dan dapat diverifikasi on-chain:
 
-| Peran | Jumlah | Tujuan |
-|-------|--------|--------|
-| Founder | 21 juta SRX | Treasury, pengembangan awal, kelangsungan operasional |
-| Early Validator | 10,5 juta SRX | Bootstrap validator awal dan seeding reward |
-| Ecosystem Fund | 21 juta SRX | Hibah, hadiah hackathon, integrasi kemitraan, likuiditas pasar |
-| Reserve | 10,5 juta SRX | Cadangan strategis di bawah kontrol multi-signature |
+| Peran | Jumlah | Alamat | Tujuan |
+|-------|--------|--------|--------|
+| Founder | 21 juta SRX | `0x5b5b06688dcdbe532353ac610aaff41af825279d` | Treasury, pengembangan awal, kelangsungan operasional, seed market-making |
+| Early Validator | 10,5 juta SRX | `0x328d56b8174697ef6c9e40e19b7663797e16fa47` | Bootstrap validator awal, seeding reward, biaya infrastruktur |
+| Ecosystem Fund | 21 juta SRX | `0xeb70fdefd00fdb768dec06c478f450c351499f14` | Hibah, hadiah hackathon, integrasi kemitraan, bootstrap likuiditas DEX |
+| Reserve | 10,5 juta SRX | `0x2578cad17e3e56c2970a5b5eab45952439f5ba97` | Cadangan strategis di bawah kontrol multi-signature, kontingensi, raise mendatang |
 
-Sisa 80% pasokan (252 juta SRX) diterbitkan melalui block reward selama kira-kira 24 tahun.
+Sisa 80% pasokan (252 juta SRX) diterbitkan melalui block reward selama kira-kira 24 tahun, setelah itu tidak ada SRX baru yang diterbitkan.
+
+**Vesting:** Premine tidak memiliki jadwal vesting on-chain. Alokasi Founder secara operasional diperlakukan sebagai posisi jangka panjang oleh penulis—bukan posisi yang dapat diperdagangkan—namun ini adalah komitmen perilaku, bukan paksaan protokol. Baca makalah ini, audit alamatnya, putuskan kepercayaan Anda sesuai itu. Migrasi multisig N-of-M di masa depan dapat menerapkan vesting yang dipaksakan pada sebagian alokasi Founder; sampai itu rilis, alokasi tersebut dapat dikontrol secara unilateral.
+
+**Manajemen treasury.** Ecosystem Fund (21 juta SRX) adalah anggaran ekspansi utama. Penggunaan yang dimaksudkan, dalam urutan prioritas: (1) seed likuiditas untuk pool DEX SRX/stablecoin pertama saat protokol bridge live, (2) hadiah hackathon dan hibah developer hingga 100K SRX per proyek, (3) subsidi integrasi kemitraan dengan counterpart ekonomi-riil, (4) hibah infrastruktur untuk validator independen. Pencairan terlihat on-chain; pola pengeluaran dari waktu ke waktu adalah mekanisme akuntabilitas publik.
 
 ### 6.5 Routing Reward
 
@@ -488,6 +492,33 @@ State genesis Sentrix dikonstruksi dari file konfigurasi (`genesis.toml`) yang m
 
 Node mana pun dapat memverifikasi state genesis dengan menerapkan ulang konfigurasi genesis; state root yang dihasilkan harus cocok dengan hash genesis yang hardcoded.
 
+### 7.5 Menjadi Validator
+
+Validator set bersifat terbuka dan tanpa izin. Operator mana pun yang dapat menjalankan infrastruktur yang andal dan mengikat self-stake minimum dapat mendaftar.
+
+Persyaratan konkret:
+
+- **Hardware:** Server x86-64 modern dengan ≥4 inti CPU, ≥8 GB RAM, ≥250 GB penyimpanan SSD, dan konektivitas jaringan yang stabil. Sebuah virtual private server tunggal di datacenter ternama cukup untuk skala saat ini; validator produksi biasanya berjalan pada 8 GB RAM dengan headroom yang nyaman.
+- **Jaringan:** Alamat IPv4 publik yang stabil dengan port TCP 30303 dapat dijangkau untuk transport P2P libp2p.
+- **Self-stake:** Bond minimum dari token SRX native, terkunci selama aktif dan selama periode unbonding. Threshold pasti adalah parameter protokol (lihat Lampiran A).
+- **Identitas:** Wallet validator yang terdaftar (keypair secp256k1) dengan nama validator yang dapat dibaca manusia. Wallet menandatangani blok dan vote; manajemen kunci yang aman adalah tanggung jawab operator.
+
+Alur registrasi: operator menjalankan `sentrix validator register` dengan keystore wallet mereka, membayar fee transaksi registrasi + bonding self-stake minimum. Setelah terdaftar, validator memenuhi syarat untuk inklusi active-set; apakah mereka masuk ke active set di epoch berikutnya tergantung ranking berbobot stake. Delegator dapat mulai mendelegasikan ke validator segera setelah registrasi.
+
+Tidak ada pembatasan yurisdiksi, tidak ada whitelist, tidak ada proses aplikasi. Misbehavior ditegakkan secara ekonomi (slashing) bukan secara administratif. Kami memperlakukan properti open-validator-set sebagai jaminan desentralisasi fundamental.
+
+### 7.6 Respons Insiden
+
+Sebuah blockchain yang live sesekali menghadapi konsensus stall, bug software, partisi jaringan, atau serangan terkoordinasi. Model respons insiden Sentrix terstruktur di sekitar tiga prinsip:
+
+**Deteksi melalui observasi.** Setiap full node secara independen memverifikasi penerapan blok. Divergensi state menghasilkan hash blok yang divergen; node dengan state yang divergen tidak dapat memenangkan chain kanonis. Daemon `sentrix-watchdog` berjalan terhadap RPC publik dan mem-page operator pada stall (tidak ada blok maju selama >5 menit) atau deteksi divergensi per-validator.
+
+**Pemulihan melalui penjajaran state-kanonis.** Ketika validator divergen—misalnya, setelah hard fork salah-diterapkan di satu node, atau setelah chain.db node rusak—protokol pemulihannya adalah mengidentifikasi state kanonis (hash chain yang disepakati supermayoritas validator berbobot stake) dan mereplikasi chain.db tersebut ke node yang divergen. Ini adalah prosedur operasional yang well-defined dan repeatable yang didokumentasikan dalam runbook operator.
+
+**Upgrade terkoordinasi melalui hard fork.** Perbaikan bug yang memerlukan perubahan konsensus dirilis sebagai hard fork yang di-gate oleh height aktivasi. Operator mengupgrade biner mereka sebelum height aktivasi; pada aktivasi, semua node menerapkan logika baru secara atomik. Window antara rilis biner dan height aktivasi (biasanya 1–7 hari untuk perbaikan tidak-mendesak, beberapa jam untuk yang mendesak) adalah periode koordinasi di mana jaringan menyetujui upgrade.
+
+Chain tidak memiliki veto governance on-chain pada state saat ini; upgrade protokol dikoordinasikan oleh rilis biner. Seiring chain matang dan desentralisasi memperdalam (Tahap 5 di arah ke depan), ini bertransisi ke governance on-chain formal.
+
 ---
 
 ## 8. Model Keamanan
@@ -540,6 +571,14 @@ Chain memiliki empat mode kegagalan well-defined:
 
 - **Sensor terkoordinasi terhadap transaksi spesifik.** Tahan terhadap sensor satu kali karena rotasi proposer menjamin bahwa validator aktif yang tidak menyensor pada akhirnya akan mengusulkan blok. Sensor berkelanjutan membutuhkan kontrol active validator set, yang menurut seleksi berbobot stake membutuhkan kontrol stake mayoritas.
 
+### 8.7 Postur Privasi
+
+Sentrix bersifat **transparan by design**. Setiap transaksi, saldo, dan pemanggilan kontrak dapat diamati publik. Ini adalah pilihan disengaja: chain melayani penyelesaian ekonomi-riil, di mana audit trail adalah fitur, bukan beban. Kami tidak berusaha menyediakan primitif privasi built-in (transaksi zk-shielded, saldo anonim, mixer).
+
+Pengguna yang membutuhkan privasi untuk kasus penggunaan spesifik dapat membangun di atasnya: kontrak zk-rollup, dApp privacy-preserving, komitmen off-chain yang diverifikasi on-chain. Lapisan dasar tetap dapat diobservasi; privasi bersifat opt-in di lapisan aplikasi.
+
+Pilihan desain ini memiliki trade-off. Chain yang transparan lebih mudah diaudit, lebih mudah diintegrasikan dengan kerangka regulasi, dan lebih mudah dipertimbangkan pada level protokol. Mereka kurang cocok untuk operator yang membutuhkan privasi wajib (perlindungan saksi, korban pelecehan, counterpart komersial sensitif). Sentrix menerima trade-off tersebut demi keterbacaan regulasi.
+
 ---
 
 ## 9. Tesis Ekonomi Riil
@@ -565,13 +604,57 @@ Posisi Sentrix adalah penyelesaian dunia riil.
 | Solana [5] | ~400 ms | Probabilistik | PoH + TowerBFT | SVM (BPF) | Inflasioner (menurun) | Transfer token |
 | Cosmos Hub [3,6] | ~6 detik | Single-block | Tendermint BFT | Cosmos SDK (Go modules) | Inflasioner | Primitif native |
 | Polygon | ~2 detik | Probabilistik + checkpointed | Varian PoS BFT | EVM | Inflasioner (capped) | Hanya EVM |
+| Aptos | ~250 ms | Single-block | AptosBFT | Move | Inflasioner | Modul Move |
+| Sui | ~390 ms | Single-block (per-objek) | Mysticeti BFT | Move (object-centric) | Inflasioner | Modul Move |
+| Near | ~1,2 detik | Single-block | Nightshade (sharded) | NEAR VM (Wasm) | Inflasioner | Kontrak Wasm |
 | **Sentrix** | **~1 detik** | **Single-block** | **DPoS + BFT (ala Tendermint)** | **EVM (revm) + Native rail** | **Capped + halving + 50% burn** | **Token, staking, validator ops** |
+
+**Aptos, Sui, Near.** Chain-chain yang lebih baru dengan model eksekusi novel—Move (object-centric dan resource-typed) dan Wasm. Mereka menawarkan properti correctness yang menarik untuk kontrak baru yang ditulis ground-up. Pilihan kompatibilitas EVM Sentrix bersifat disengaja: dApp Solidity yang sudah ada dapat di-deploy tanpa perubahan, ekosistem developer sudah ada pada skala, dan tooling (Foundry, Hardhat, MetaMask, ethers, viem) sudah matang. Chain Move dan Wasm membutuhkan rewriting greenfield untuk setiap dApp—pajak adopsi yang curam untuk diminta dibayar oleh developer pada chain baru.
 
 Sentrix tidak baru dalam dimensi tunggal mana pun. Kontribusinya adalah kombinasi: eksekusi hibrida native-EVM, BFT berbobot stake, pasokan capped deflasioner, finalitas sub-detik, berorientasi pada penyelesaian dunia riil dan berakar di pasar Indonesia.
 
 ---
 
-## 11. Arah ke Depan
+## 11. Tata Kelola
+
+### 11.1 Status Saat Ini
+
+Upgrade protokol Sentrix dikoordinasikan melalui rilis biner yang di-gate oleh height aktivasi. Penulis merilis biner node baru; operator mengupgrade dalam jendela waktu sebelum height aktivasi sebuah fork; pada aktivasi, semua node menerapkan logika baru secara atomik. Ini adalah mekanisme yang sama yang digunakan Bitcoin, Ethereum, dan sebagian besar chain berbasis Tendermint untuk hard fork.
+
+Pada fase penulis-tunggal saat ini, penulis memegang veto efektif atas rilis apa yang dikirim. Ini sesuai untuk pengembangan tahap awal—iterasi cepat, respons bug yang gesit, tanpa bottleneck komite—namun bukan model governance jangka panjang.
+
+### 11.2 SentrixSafe Multisig
+
+Otoritas atas operasi privileged (kunci otoritas validator, manajemen cadangan treasury, toggle fee-fork) dipegang oleh SentrixSafe multisig, sebuah kontrak turunan Gnosis-Safe yang di-deploy saat genesis. Saat ini dikonfigurasi 1-of-1 dengan penulis sebagai sole signer; dimaksudkan untuk berkembang secara organik ke N-of-M seiring chain menarik kontributor jangka panjang yang dapat secara kredibel menandatangani operasi otoritas protokol.
+
+Ekspansi terjadi dengan menambahkan co-signer melalui operasi `addOwner` standar SentrixSafe, meningkatkan threshold tanda tangan secara proporsional. Tidak ada timeline keras; standar adalah "co-signer kredibel dengan kelangsungan operasional dan skin-in-the-game," bukan "kuartal kalender."
+
+### 11.3 Governance On-Chain Mendatang
+
+Tahap 5 dari arah ke depan (Bagian 12) memigrasi keputusan protokol ke mekanisme governance on-chain yang berbobot stake. Desain yang diharapkan:
+
+- **Threshold proposal:** Siapa pun yang memegang stake SRX di atas minimum dapat mengajukan proposal.
+- **Voting:** Vote berbobot stake melintasi active validator set, dengan delegator mewarisi vote validator mereka kecuali mereka secara eksplisit override.
+- **Quorum:** Proposal memerlukan partisipasi minimum (target: 33% dari active stake) agar valid.
+- **Threshold lulus:** Dapat dikonfigurasi per jenis proposal—simple majority untuk sebagian besar keputusan, supermayoritas untuk perubahan yang memutus protokol.
+- **Eksekusi:** Proposal yang lulus memicu efek on-chain yang telah didefinisikan sebelumnya (update parameter, pencairan treasury, set height aktivasi hard-fork).
+
+Sampai Tahap 5 rilis, disiplin governance bersifat operasional: operasi privileged hanya via SentrixSafe, penggunaan treasury yang transparan, history commit publik, dan rilis biner yang dikoordinasikan secara terbuka.
+
+### 11.4 Yang Tidak Dapat Diatur Governance
+
+Beberapa properti chain sengaja tidak dapat diatur governance:
+
+- Cap pasokan 315 juta SRX. Tidak ada vote, tidak ada fork, tidak ada upgrade yang mengubah ini. Cap adalah bagian dari kontrak ekonomi fundamental Sentrix.
+- Jadwal halving empat tahun. Terkunci ke kalkulasi block-reward.
+- Rasio burn fee 50%. Terkunci ke dispatch fee.
+- Alokasi genesis (premine 63 juta melintasi empat peran). Dialokasikan pada blok 0; tidak ada mekanisme untuk membatalkannya.
+
+Ini adalah parameter di mana stabilitas adalah fitur. Segala sesuatu lainnya (parameter jaringan, ukuran validator-set, height fork untuk opcode baru) tunduk pada upgrade yang dikoordinasikan.
+
+---
+
+## 12. Arah ke Depan
 
 Kami menjelaskan trajektori Sentrix dalam bahasa tahap alih-alih tanggal, karena tanggal menciptakan kekhususan palsu yang kondisi riil tidak pernah hormati.
 
@@ -591,7 +674,7 @@ Tahap-tahap ini tidak berjalan pada kalender. Mereka berjalan pada kepuasan pras
 
 ---
 
-## 12. Kesimpulan
+## 13. Kesimpulan
 
 Sentrix adalah respons yang disengaja terhadap absennya struktur. Blockchain dominan saat ini melayani perdagangan dan spekulasi dengan baik, dan mereka melayani penyelesaian ekonomi riil dengan buruk. Kami tidak percaya ini tak terhindarkan. Kami percaya ini adalah konsekuensi dari pilihan desain yang dapat dibuat berbeda.
 
@@ -654,6 +737,53 @@ Kami berharap untuk beroperasi dalam jangka waktu yang lama. Sentrix terbuka unt
 [14] Buterin, V., Griffith, V. (2017). *Casper the Friendly Finality Gadget.*
 
 [15] Dwork, C., Lynch, N., Stockmeyer, L. (1988). *Consensus in the Presence of Partial Synchrony.*
+
+---
+
+## Lampiran B — Pengungkapan Risiko
+
+Lampiran ini mendokumentasikan risiko yang diketahui. Tidak bersifat exhaustive; pembaca harus melakukan due diligence sendiri.
+
+**Risiko teknis.**
+- *Kelas non-determinisme konsensus.* Chain telah mengalami halt non-determinisme LivenessTracker yang memerlukan penonaktifan dispatch consensus-jail (`JAIL_CONSENSUS_HEIGHT=u64::MAX`). Jailing manual tetap operasional. Perbaikan permanen termasuk dalam scope sesi pengembangan fresh-brain mendatang.
+- *Risiko implementasi tunggal.* Chain memiliki satu implementasi Rust. Bug dalam implementasi tersebut dapat memengaruhi seluruh jaringan sampai di-patch. Diversitas multi-implementasi (model Bitcoin Core / btcd / Knots Bitcoin) tidak ada.
+- *Konsentrasi validator.* Active validator set kecil pada tahap ini. Perilaku Byzantine berkelanjutan oleh supermayoritas secara teoretis mungkin terjadi sampai active set tumbuh ke ukuran yang terdesentralisasi secara bermakna.
+
+**Risiko ekonomi.**
+- *Belum ada penemuan harga.* SRX saat ini tidak diperdagangkan di exchange atau DEX mana pun. Tidak ada harga pasar. Cap 315 juta adalah konstanta protokol, bukan valuasi pasar.
+- *Alokasi Founder dapat dikontrol unilateral.* Sampai SentrixSafe berkembang ke N-of-M dan/atau alokasi Founder di-vesting on-chain, alamat Founder dapat memindahkan 21 juta SRX kapan saja.
+- *Ketergantungan stablecoin/bridge.* Kasus penggunaan ekonomi-riil memerlukan counterpart stablecoin. Sampai protokol bridge di-deploy, Sentrix terisolasi dari ekonomi stablecoin yang lebih luas.
+
+**Risiko regulasi.**
+- *Lanskap regulasi Indonesia berkembang.* Bappebti (regulator komoditas berjangka Indonesia) memiliki kerangka untuk aset crypto yang terus berkembang. Sentrix beroperasi di lingkungan yang berkembang ini dan mungkin menghadapi persyaratan baru.
+- *Ketidakpastian lintas-yurisdiksi.* Holder dan validator di yurisdiksi berbeda menghadapi rezim regulasi berbeda yang mungkin mengklasifikasikan SRX atau aktivitas staking secara berbeda. Konsultasikan ke counsel lokal.
+- *Klasifikasi hukum sekuritas.* SRX dimaksudkan sebagai utility token untuk operasi chain (gas, staking, governance). Apakah yurisdiksi tertentu mengklasifikasikannya sebagai sekuritas tergantung pada hukum lokal dan bagaimana ditawarkan. Penulis bukan legal counsel.
+
+**Risiko operasional.**
+- *Bus factor penulis tunggal.* Sentrix dibangun solo. Partisipasi berkelanjutan penulis tidak dijamin oleh kontrak apa pun. Resilience jangka panjang tergantung pada codebase yang cukup terbuka sehingga operator lain dapat menjalankan fork (transisi BUSL → Apache 2.0 setelah Change Date).
+- *Single point of failure infrastruktur.* Host validator, host explorer, konfigurasi DNS, situs dokumentasi—semua dipelihara secara operasional oleh penulis pada tahap ini. Desentralisasi lapisan operasional ini adalah objektif ke depan, bukan state saat ini.
+
+Daftar ini jujur, bukan exhaustive. Perilaku, kontrak, dan history chain bersifat publik; pembaca harus memverifikasi apa yang mereka pedulikan terhadap rekaman on-chain dan source code.
+
+---
+
+## Lampiran C — Pemberitahuan Hukum
+
+Whitepaper ini adalah deskripsi protokol software. Ini bukan offering document, prospektus, solicitation investasi, atau nasihat finansial. SRX adalah utility token yang digunakan untuk membayar fee transaksi, mengamankan chain melalui staking, dan (di masa depan) berpartisipasi dalam governance. Mengakuisisi atau memegang SRX memerlukan risiko—teknis, ekonomi, regulasi, dan operasional—yang dijelaskan di Lampiran B.
+
+Protokol Sentrix Chain adalah infrastruktur open-source di bawah Business Source License 1.1, bertransisi ke Apache 2.0 setelah Change Date yang ditentukan dalam file LICENSE. Siapa pun dapat menjalankan node, siapa pun dapat mengirim transaksi, siapa pun dapat beroperasi sebagai validator dengan tunduk pada persyaratan level-protokol yang dijelaskan di §7.5.
+
+Penulis tidak membuat representasi tentang harga pasar SRX di masa depan, adopsi ekosistem, hasil kemitraan, atau penerimaan regulasi. Pernyataan forward-looking di §12 (Arah ke Depan) menjelaskan intent, bukan jaminan.
+
+Pembaca bertanggung jawab atas kepatuhan terhadap hukum dan regulasi lokal mereka mengenai pemegangan, transaksi, dan operasi validator cryptocurrency.
+
+---
+
+## Tentang Penulis
+
+**Satya Kwok** membangun Sentrix Chain solo dalam Rust. Karya sebelumnya dan keterlibatan penulis dapat diobservasi publik di GitHub (`@satyakwok`) dan melalui history commit terbuka proyek di `github.com/sentrix-labs/sentrix`. Penulis dapat dihubungi melalui channel yang tercantum di `sentrixchain.com` dan melalui issue tracker pada repositori kanonis.
+
+Keputusan untuk membangun Sentrix solo bersifat disengaja: tim kecil ship lebih cepat, keputusan lebih jelas, dan akuntabilitas tidak ambigu. Trade-off-nya adalah bus factor penulis (Lampiran B). Penulis berkomitmen untuk mengoperasikan Sentrix sebagai infrastruktur finansial yang tahan lama untuk masa depan tak terbatas, namun tidak berkomitmen pada timeline spesifik di luar jaminan level-protokol yang dikodifikasi dalam chain itu sendiri.
 
 ---
 

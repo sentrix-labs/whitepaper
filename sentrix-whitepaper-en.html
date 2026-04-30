@@ -168,119 +168,11 @@
 <header id="title-block-header">
 <h1 class="title">Sentrix Whitepaper</h1>
 </header>
-<nav id="TOC" role="doc-toc">
-<ul>
-<li><a href="#sentrix" id="toc-sentrix">Sentrix</a>
-<ul>
-<li><a href="#a-layer-one-blockchain-for-the-real-economy"
-id="toc-a-layer-one-blockchain-for-the-real-economy">A Layer-One
-Blockchain for the Real Economy</a></li>
-<li><a href="#abstract" id="toc-abstract">Abstract</a></li>
-<li><a href="#introduction" id="toc-introduction">1.
-Introduction</a></li>
-<li><a href="#vision-mission-and-rationale"
-id="toc-vision-mission-and-rationale">2. Vision, Mission, and
-Rationale</a>
-<ul>
-<li><a href="#vision" id="toc-vision">2.1 Vision</a></li>
-<li><a href="#mission" id="toc-mission">2.2 Mission</a></li>
-<li><a href="#why-sentrix-exists" id="toc-why-sentrix-exists">2.3 Why
-Sentrix Exists</a></li>
-<li><a href="#why-now" id="toc-why-now">2.4 Why Now</a></li>
-<li><a href="#why-indonesia-first" id="toc-why-indonesia-first">2.5 Why
-Indonesia First</a></li>
-</ul></li>
-<li><a href="#design-principles" id="toc-design-principles">3. Design
-Principles</a></li>
-<li><a href="#architecture" id="toc-architecture">4. Architecture</a>
-<ul>
-<li><a href="#consensus-layer" id="toc-consensus-layer">4.1 Consensus
-Layer</a></li>
-<li><a href="#execution-layer" id="toc-execution-layer">4.2 Execution
-Layer</a></li>
-<li><a href="#state-layer" id="toc-state-layer">4.3 State Layer</a></li>
-<li><a href="#network-model" id="toc-network-model">4.4 Network
-Model</a></li>
-<li><a href="#transaction-format" id="toc-transaction-format">4.5
-Transaction Format</a></li>
-</ul></li>
-<li><a href="#native-operations" id="toc-native-operations">5. Native
-Operations</a>
-<ul>
-<li><a href="#the-native-vs-contract-question"
-id="toc-the-native-vs-contract-question">5.1 The Native vs Contract
-Question</a></li>
-<li><a href="#native-operation-set" id="toc-native-operation-set">5.2
-Native Operation Set</a></li>
-<li><a href="#lifecycle-of-a-transaction"
-id="toc-lifecycle-of-a-transaction">5.3 Lifecycle of a
-Transaction</a></li>
-</ul></li>
-<li><a href="#tokenomics" id="toc-tokenomics">6. Tokenomics</a>
-<ul>
-<li><a href="#supply" id="toc-supply">6.1 Supply</a></li>
-<li><a href="#block-reward-and-halving"
-id="toc-block-reward-and-halving">6.2 Block Reward and Halving</a></li>
-<li><a href="#fee-mechanism" id="toc-fee-mechanism">6.3 Fee
-Mechanism</a></li>
-<li><a href="#premine-and-initial-distribution"
-id="toc-premine-and-initial-distribution">6.4 Premine and Initial
-Distribution</a></li>
-<li><a href="#reward-routing" id="toc-reward-routing">6.5 Reward
-Routing</a></li>
-</ul></li>
-<li><a href="#validator-economics" id="toc-validator-economics">7.
-Validator Economics</a>
-<ul>
-<li><a href="#stake-at-risk-and-slashing"
-id="toc-stake-at-risk-and-slashing">7.1 Stake at Risk and
-Slashing</a></li>
-<li><a href="#block-reward-and-fee-share"
-id="toc-block-reward-and-fee-share">7.2 Block Reward and Fee
-Share</a></li>
-<li><a href="#liveness-penalty" id="toc-liveness-penalty">7.3 Liveness
-Penalty</a></li>
-<li><a href="#genesis-and-bootstrap" id="toc-genesis-and-bootstrap">7.4
-Genesis and Bootstrap</a></li>
-</ul></li>
-<li><a href="#security-model" id="toc-security-model">8. Security
-Model</a>
-<ul>
-<li><a href="#cryptographic-guarantee"
-id="toc-cryptographic-guarantee">8.1 Cryptographic Guarantee</a></li>
-<li><a href="#crypto-economic-guarantee"
-id="toc-crypto-economic-guarantee">8.2 Crypto-Economic
-Guarantee</a></li>
-<li><a href="#social-guarantee" id="toc-social-guarantee">8.3 Social
-Guarantee</a></li>
-<li><a href="#quantitative-security" id="toc-quantitative-security">8.4
-Quantitative Security</a></li>
-<li><a href="#long-range-attacks-and-weak-subjectivity"
-id="toc-long-range-attacks-and-weak-subjectivity">8.5 Long-Range Attacks
-and Weak Subjectivity</a></li>
-<li><a href="#failure-modes" id="toc-failure-modes">8.6 Failure
-Modes</a></li>
-</ul></li>
-<li><a href="#the-real-economy-thesis"
-id="toc-the-real-economy-thesis">9. The Real-Economy Thesis</a></li>
-<li><a href="#comparison-to-prior-work"
-id="toc-comparison-to-prior-work">10. Comparison to Prior Work</a></li>
-<li><a href="#path-forward" id="toc-path-forward">11. Path
-Forward</a></li>
-<li><a href="#conclusion" id="toc-conclusion">12. Conclusion</a></li>
-<li><a href="#appendix-a-protocol-parameters"
-id="toc-appendix-a-protocol-parameters">Appendix A — Protocol
-Parameters</a></li>
-<li><a href="#references" id="toc-references">References</a></li>
-<li><a href="#acknowledgments"
-id="toc-acknowledgments">Acknowledgments</a></li>
-</ul></li>
-</ul>
-</nav>
 <h1 id="sentrix">Sentrix</h1>
 <h3 id="a-layer-one-blockchain-for-the-real-economy">A Layer-One
 Blockchain for the Real Economy</h3>
-<p><strong>Author:</strong> Satya Kwok <strong>Version:</strong> 1.1</p>
+<p><strong>Author:</strong> Satya Kwok <strong>Version:</strong> 1.2
+(final unless chain hard-fork)</p>
 <hr />
 <h2 id="abstract">Abstract</h2>
 <p>We propose Sentrix, a Layer-One blockchain optimized for real-world
@@ -869,17 +761,20 @@ reaches a deflationary equilibrium.</p>
 <h3 id="premine-and-initial-distribution">6.4 Premine and Initial
 Distribution</h3>
 <p>A premine of 63 million SRX—20% of the supply cap—was allocated at
-genesis across four roles:</p>
+genesis across four roles. All allocation addresses are public and
+verifiable on chain:</p>
 <table>
 <colgroup>
-<col style="width: 26%" />
-<col style="width: 34%" />
-<col style="width: 39%" />
+<col style="width: 18%" />
+<col style="width: 25%" />
+<col style="width: 28%" />
+<col style="width: 28%" />
 </colgroup>
 <thead>
 <tr class="header">
 <th>Role</th>
 <th>Amount</th>
+<th>Address</th>
 <th>Purpose</th>
 </tr>
 </thead>
@@ -887,28 +782,51 @@ genesis across four roles:</p>
 <tr class="odd">
 <td>Founder</td>
 <td>21M SRX</td>
-<td>Treasury, initial development, operational continuity</td>
+<td><code>0x5b5b06688dcdbe532353ac610aaff41af825279d</code></td>
+<td>Treasury, initial development, operational continuity, market-making
+seed</td>
 </tr>
 <tr class="even">
 <td>Early Validator</td>
 <td>10.5M SRX</td>
-<td>Initial validator bootstrap and reward seeding</td>
+<td><code>0x328d56b8174697ef6c9e40e19b7663797e16fa47</code></td>
+<td>Initial validator bootstrap, reward seeding, infrastructure
+costs</td>
 </tr>
 <tr class="odd">
 <td>Ecosystem Fund</td>
 <td>21M SRX</td>
-<td>Grants, hackathon prizes, partnership integrations, market
-liquidity</td>
+<td><code>0xeb70fdefd00fdb768dec06c478f450c351499f14</code></td>
+<td>Grants, hackathon prizes, partnership integrations, DEX liquidity
+bootstrap</td>
 </tr>
 <tr class="even">
 <td>Reserve</td>
 <td>10.5M SRX</td>
-<td>Strategic reserve under multi-signature control</td>
+<td><code>0x2578cad17e3e56c2970a5b5eab45952439f5ba97</code></td>
+<td>Strategic reserve under multi-signature control, contingency, future
+raises</td>
 </tr>
 </tbody>
 </table>
 <p>The remaining 80% of supply (252M SRX) issues through block rewards
 over approximately 24 years, after which no further SRX is issued.</p>
+<p><strong>Vesting:</strong> The premine has no on-chain vesting
+schedule. The Founder allocation is operationally treated as a long-term
+holding by the author—not a tradable position—but this is a behavioral
+commitment, not a protocol enforcement. Read this paper, audit the
+addresses, decide your trust accordingly. Future N-of-M multisig
+migration may impose enforced vesting on a portion of the Founder
+allocation; until that ships, the allocation is unilaterally
+controllable.</p>
+<p><strong>Treasury management.</strong> The Ecosystem Fund (21M SRX) is
+the primary expansion budget. Intended uses, in priority order: (1) seed
+liquidity for the first SRX/stablecoin DEX pool when the bridge protocol
+is live, (2) hackathon prizes and developer grants up to 100K SRX per
+project, (3) partnership integration subsidies with real-economy
+counterparties, (4) infrastructure grants for independent validators.
+Disbursements are visible on chain; the spending pattern over time is
+the public accountability mechanism.</p>
 <h3 id="reward-routing">6.5 Reward Routing</h3>
 <pre><code>Figure 4 — Reward routing
 
@@ -1019,6 +937,65 @@ syncing block-by-block from genesis (or from a recent state snapshot
 signed by trusted validators), and entering the active validator set
 when their stake-weighted ranking enters the top-K threshold for the
 next epoch.</p>
+<h3 id="becoming-a-validator">7.5 Becoming a Validator</h3>
+<p>The validator set is open and permissionless. Any operator who can
+run reliable infrastructure and bond minimum self-stake may
+register.</p>
+<p>Concrete requirements:</p>
+<ul>
+<li><strong>Hardware:</strong> A modern x86-64 server with ≥4 CPU cores,
+≥8 GB RAM, ≥250 GB SSD storage, and stable network connectivity. A
+single virtual private server in a reputable datacenter is sufficient
+for the present scale; production validators typically run on 8 GB RAM
+with comfortable headroom.</li>
+<li><strong>Network:</strong> A stable public IPv4 address with TCP port
+30303 reachable for the libp2p P2P transport.</li>
+<li><strong>Self-stake:</strong> A minimum bond of native SRX tokens,
+locked while active and during the unbonding period. The exact threshold
+is a protocol parameter (see Appendix A).</li>
+<li><strong>Identity:</strong> A registered validator wallet (secp256k1
+keypair) with a human-readable validator name. The wallet signs blocks
+and votes; secure key management is the operator’s responsibility.</li>
+</ul>
+<p>Registration flow: operator runs
+<code>sentrix validator register</code> with their wallet keystore,
+paying the registration transaction fee + bonding the minimum
+self-stake. Once registered, the validator is eligible for active-set
+inclusion; whether they enter the active set in the next epoch depends
+on stake-weighted ranking. Delegators can begin delegating to the
+validator immediately after registration.</p>
+<p>There are no jurisdictional restrictions, no whitelist, no
+application process. Misbehavior is enforced economically (slashing)
+rather than administratively. We treat the open-validator-set property
+as a foundational decentralization guarantee.</p>
+<h3 id="incident-response">7.6 Incident Response</h3>
+<p>A live blockchain occasionally faces consensus stalls, software bugs,
+network partitions, or coordinated attacks. Sentrix’s incident response
+model is structured around three principles:</p>
+<p><strong>Detection through observation.</strong> Every full node
+independently verifies block applications. State divergence produces
+divergent block hashes; nodes with divergent state cannot win the
+canonical chain. A <code>sentrix-watchdog</code> daemon runs against the
+public RPC and pages the operator on stall (no block advance for &gt;5
+minutes) or per-validator divergence detection.</p>
+<p><strong>Recovery through canonical-state alignment.</strong> When
+validators diverge—for example, after a hard fork is mis-applied at one
+node, or after a node’s chain.db is corrupted—the recovery protocol is
+to identify the canonical state (the chain hash that supermajority of
+stake-weighted validators agrees on) and replicate that chain.db to the
+diverged node. This is a well-defined, repeatable operational procedure
+documented in operator runbooks.</p>
+<p><strong>Coordinated upgrade through hard fork.</strong> Bug fixes
+that require consensus changes ship as hard forks gated by activation
+height. Operators upgrade their binary before the activation height; on
+activation, all nodes apply the new logic atomically. The window between
+binary release and activation height (typically 1–7 days for non-urgent
+fixes, hours for urgent ones) is the coordination period during which
+the network agrees on the upgrade.</p>
+<p>The chain has no on-chain governance veto in its current state;
+protocol upgrades are coordinated by binary releases. As the chain
+matures and decentralization deepens (Stage 5 in the path forward), this
+transitions to formal on-chain governance.</p>
 <hr />
 <h2 id="security-model">8. Security Model</h2>
 <p>Sentrix’s security derives from four layers of guarantee.</p>
@@ -1110,6 +1087,23 @@ by stake-weighted selection requires majority stake control.</p></li>
 <p>The model assumes no failure modes outside this set are silent: any
 deviation from honest behavior produces evidence visible to other full
 nodes, slashable to validators, and observable to the public.</p>
+<h3 id="privacy-posture">8.7 Privacy Posture</h3>
+<p>Sentrix is <strong>transparent by design</strong>. Every transaction,
+balance, and contract call is publicly observable. This is a deliberate
+choice: the chain serves real-economy settlement, where audit trails are
+a feature rather than a liability. We do not attempt to provide built-in
+privacy primitives (zk-shielded transactions, anonymous balances,
+mixers).</p>
+<p>Users who require privacy for specific use cases can build it on top:
+zk-rollup contracts, privacy-preserving DApps, off-chain commitments
+verified on-chain. The base layer remains observable; privacy is opt-in
+at the application layer.</p>
+<p>This design choice has tradeoffs. Transparent chains are easier to
+audit, easier to integrate with regulatory frameworks, and easier to
+reason about at the protocol level. They are less suitable for operators
+who require mandatory privacy (witness protection, victim of harassment,
+sensitive commercial counterparties). Sentrix accepts the tradeoff in
+favor of regulatory legibility.</p>
 <hr />
 <h2 id="the-real-economy-thesis">9. The Real-Economy Thesis</h2>
 <p>Sentrix’s positioning is real-world settlement. We expand on what
@@ -1220,6 +1214,33 @@ we acknowledge and contrast.</p>
 <td>EVM-only</td>
 </tr>
 <tr class="even">
+<td>Aptos</td>
+<td>~250 ms</td>
+<td>Single-block</td>
+<td>AptosBFT</td>
+<td>Move</td>
+<td>Inflationary</td>
+<td>Move modules</td>
+</tr>
+<tr class="odd">
+<td>Sui</td>
+<td>~390 ms</td>
+<td>Single-block (per-object)</td>
+<td>Mysticeti BFT</td>
+<td>Move (object-centric)</td>
+<td>Inflationary</td>
+<td>Move modules</td>
+</tr>
+<tr class="even">
+<td>Near</td>
+<td>~1.2 sec</td>
+<td>Single-block</td>
+<td>Nightshade (sharded)</td>
+<td>NEAR VM (Wasm)</td>
+<td>Inflationary</td>
+<td>Wasm contracts</td>
+</tr>
+<tr class="odd">
 <td><strong>Sentrix</strong></td>
 <td><strong>~1 sec</strong></td>
 <td><strong>Single-block</strong></td>
@@ -1258,12 +1279,81 @@ chains have built EVM-compatible high-performance environments. Each has
 chosen a different positioning within the speculative-DeFi space.
 Sentrix’s distinct positioning is the real economy and the
 Indonesia-first market entry.</p>
+<p><strong>Aptos, Sui, Near.</strong> Newer chains with novel execution
+models—Move (object-centric and resource-typed) and Wasm. These offer
+attractive correctness properties for new contracts written ground-up.
+Sentrix’s choice of EVM compatibility is deliberate: existing Solidity
+dApps deploy unchanged, the developer ecosystem already exists at scale,
+and tooling (Foundry, Hardhat, MetaMask, ethers, viem) is mature. Move
+and Wasm chains require greenfield rewriting of every dApp—a steep
+adoption tax for a new chain to ask developers to pay.</p>
 <p>Sentrix is not novel in any single dimension. Its contribution is the
 combination: native-EVM hybrid execution, stake-weighted BFT,
 deflationary capped supply, sub-second finality, oriented toward
 real-world settlement and rooted in the Indonesian market.</p>
 <hr />
-<h2 id="path-forward">11. Path Forward</h2>
+<h2 id="governance">11. Governance</h2>
+<h3 id="current-state">11.1 Current State</h3>
+<p>Sentrix’s protocol upgrades are coordinated through binary releases
+gated by activation height. The author releases new node binaries;
+operators upgrade in the time window before a fork’s activation height;
+on activation, all nodes apply the new logic atomically. This is the
+same mechanism Bitcoin, Ethereum, and most Tendermint-based chains use
+for hard forks.</p>
+<p>In the current single-author phase, the author holds an effective
+veto over what releases ship. This is appropriate for early-stage
+development—rapid iteration, fast bug response, no committee
+bottleneck—but is not the long-term governance model.</p>
+<h3 id="the-sentrixsafe-multisig">11.2 The SentrixSafe Multisig</h3>
+<p>Authority over privileged operations (validator authority key,
+treasury reserve management, fee-fork toggle) is held by the SentrixSafe
+multisig, a Gnosis-Safe-derived contract deployed at genesis. Currently
+configured 1-of-1 with the author as sole signer; intended to expand
+organically to N-of-M as the chain attracts long-term contributors who
+can credibly sign off on protocol authority operations.</p>
+<p>Expansion happens by adding co-signers through SentrixSafe’s standard
+<code>addOwner</code> operation, increasing the signature threshold
+proportionally. There is no hard timeline; the bar is “credible
+co-signer with operational continuity and skin-in-the-game,” not
+“calendar quarter.”</p>
+<h3 id="future-on-chain-governance">11.3 Future On-Chain Governance</h3>
+<p>Stage 5 of the path forward (Section 12) migrates protocol decisions
+onto a stake-weighted on-chain governance mechanism. The expected
+design:</p>
+<ul>
+<li><strong>Proposal threshold:</strong> Anyone holding above a minimum
+SRX stake may submit a proposal.</li>
+<li><strong>Voting:</strong> Stake-weighted vote across the active
+validator set, with delegators inheriting their validator’s vote unless
+they explicitly override.</li>
+<li><strong>Quorum:</strong> Proposals require minimum participation
+(target: 33% of active stake) to be valid.</li>
+<li><strong>Pass threshold:</strong> Configurable per proposal
+type—simple majority for most decisions, supermajority for
+protocol-breaking changes.</li>
+<li><strong>Execution:</strong> Passing proposals trigger pre-defined
+on-chain effects (parameter updates, treasury disbursements, hard-fork
+activation height set).</li>
+</ul>
+<p>Until Stage 5 ships, the governance discipline is operational:
+privileged operations only via SentrixSafe, transparent treasury usage,
+public commit history, and binary releases coordinated openly.</p>
+<h3 id="what-cannot-be-governed">11.4 What Cannot Be Governed</h3>
+<p>Some chain properties are deliberately non-governable:</p>
+<ul>
+<li>The 315M SRX supply cap. No vote, no fork, no upgrade changes this.
+The cap is part of Sentrix’s foundational economic contract.</li>
+<li>The four-year halving schedule. Locked into block-reward
+calculation.</li>
+<li>The 50% fee burn ratio. Locked into fee dispatch.</li>
+<li>The genesis allocation (63M premine across the four roles).
+Allocated at block 0; no mechanism exists to undo it.</li>
+</ul>
+<p>These are the parameters where stability is the feature. Everything
+else (network parameters, validator-set size, fork heights for new
+opcodes) is subject to coordinated upgrade.</p>
+<hr />
+<h2 id="path-forward">12. Path Forward</h2>
 <p>We describe the trajectory of Sentrix in the language of stages
 rather than dates, because dates create false specificity that real
 conditions never honor.</p>
@@ -1293,7 +1383,7 @@ from its code.</p>
 <p>These stages do not run on a calendar. They run on the satisfaction
 of preconditions. We will not announce dates we cannot guarantee.</p>
 <hr />
-<h2 id="conclusion">12. Conclusion</h2>
+<h2 id="conclusion">13. Conclusion</h2>
 <p>Sentrix is a deliberate response to a structural absence. The
 dominant blockchains of the present moment serve trading and speculation
 well, and they serve real economic settlement poorly. We do not believe
@@ -1443,6 +1533,89 @@ ETH 1.0 chain.</em></p>
 Finality Gadget.</em></p>
 <p>[15] Dwork, C., Lynch, N., Stockmeyer, L. (1988). <em>Consensus in
 the Presence of Partial Synchrony.</em></p>
+<hr />
+<h2 id="appendix-b-risk-disclosures">Appendix B — Risk Disclosures</h2>
+<p>This appendix documents known risks. It is not exhaustive; readers
+must perform their own due diligence.</p>
+<p><strong>Technical risks.</strong> - <em>Consensus non-determinism
+class.</em> The chain has experienced LivenessTracker non-determinism
+halts that required disabling the consensus-jail dispatch
+(<code>JAIL_CONSENSUS_HEIGHT=u64::MAX</code>). Manual jailing remains
+operational. A permanent fix is in scope for future fresh-brain
+development sessions. - <em>Single-implementation risk.</em> The chain
+has one Rust implementation. A bug in that implementation can affect the
+entire network until patched. Multiple-implementation diversity
+(Bitcoin’s Bitcoin Core / btcd / Knots model) is not present. -
+<em>Validator concentration.</em> The active validator set is small at
+this stage. Sustained Byzantine behavior by a supermajority is
+theoretically possible until the active set grows to a meaningfully
+decentralized size.</p>
+<p><strong>Economic risks.</strong> - <em>No price discovery yet.</em>
+SRX is not currently trading on any exchange or DEX. There is no market
+price. The 315M cap is a protocol constant, not a market valuation. -
+<em>Founder allocation is unilaterally controllable.</em> Until
+SentrixSafe expands to N-of-M and/or Founder allocation is on-chain
+vested, the Founder address can move 21M SRX at any time. -
+<em>Stablecoin/bridge dependency.</em> Real-economy use cases require a
+stablecoin counterparty. Until a bridge protocol is deployed, Sentrix is
+islanded from the broader stablecoin economy.</p>
+<p><strong>Regulatory risks.</strong> - <em>Indonesian regulatory
+landscape evolving.</em> Bappebti (Indonesia commodity futures
+regulator) has framework for crypto assets that continues to evolve.
+Sentrix operates in this evolving environment and may face new
+requirements. - <em>Cross-jurisdictional uncertainty.</em> Holders and
+validators in different jurisdictions face different regulatory regimes
+that may classify SRX or staking activity differently. Consult local
+counsel. - <em>Securities-law classification.</em> SRX is intended as a
+utility token for chain operations (gas, staking, governance). Whether
+any specific jurisdiction classifies it as a security depends on local
+law and how it is offered. The author is not legal counsel.</p>
+<p><strong>Operational risks.</strong> - <em>Single-author bus
+factor.</em> Sentrix is solo-built. The author’s continued participation
+is not guaranteed by any contract. Long-term resilience depends on the
+codebase being open enough that other operators can run forks (BUSL →
+Apache 2.0 transition after Change Date). - <em>Infrastructure single
+points of failure.</em> The validator hosts, the explorer host, the DNS
+configuration, the documentation site—all are operationally maintained
+by the author at this stage. Decentralization of these operational
+layers is a forward objective, not a current state.</p>
+<p>This list is honest, not exhaustive. The chain’s behavior, contract,
+and history are public; readers should verify what they care about
+against the on-chain record and the source code.</p>
+<hr />
+<h2 id="appendix-c-legal-notice">Appendix C — Legal Notice</h2>
+<p>This whitepaper is a description of a software protocol. It is not an
+offering document, prospectus, investment solicitation, or financial
+advice. SRX is a utility token used to pay transaction fees, secure the
+chain through staking, and (in the future) participate in governance.
+Acquiring or holding SRX entails risks—technical, economic, regulatory,
+and operational—described in Appendix B.</p>
+<p>The Sentrix Chain protocol is open-source infrastructure under the
+Business Source License 1.1, transitioning to Apache 2.0 after the
+Change Date specified in the LICENSE file. Anyone may run a node, anyone
+may submit transactions, anyone may operate as a validator subject to
+the protocol-level requirements described in §7.5.</p>
+<p>The author makes no representations about future SRX market price,
+ecosystem adoption, partnership outcomes, or regulatory acceptance.
+Forward-looking statements in §12 (Path Forward) describe intent, not
+guarantees.</p>
+<p>Readers are responsible for compliance with their local laws and
+regulations regarding cryptocurrency holding, transaction, and validator
+operation.</p>
+<hr />
+<h2 id="about-the-author">About the Author</h2>
+<p><strong>Satya Kwok</strong> built Sentrix Chain solo in Rust. The
+author’s prior work and engagement is publicly observable on GitHub
+(<code>@satyakwok</code>) and through the project’s open commit history
+at <code>github.com/sentrix-labs/sentrix</code>. The author is
+contactable through the channels listed at <code>sentrixchain.com</code>
+and through the issue tracker on the canonical repository.</p>
+<p>The decision to build Sentrix solo was deliberate: small teams ship
+faster, decisions are clearer, and accountability is unambiguous. The
+trade-off is the author’s bus factor (Appendix B). The author is
+committed to operating Sentrix as durable financial infrastructure for
+the indefinite future, but commits to no specific timeline beyond the
+protocol-level guarantees codified in the chain itself.</p>
 <hr />
 <h2 id="acknowledgments">Acknowledgments</h2>
 <p>Sentrix is the product of a single author’s work over an

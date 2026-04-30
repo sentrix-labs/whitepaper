@@ -13,7 +13,14 @@ Foundational paper for [Sentrix Chain](https://sentrixchain.com) — a Layer-One
 
 ## Versions
 
-- **v1.1** (current) — Vision, mission, and protocol depth: state transition function,
+- **v1.2** (current, final unless chain hard-fork) — Adds genesis allocation
+  addresses (on-chain verifiable), validator onboarding requirements (§7.5),
+  incident response model (§7.6), privacy posture (§8.7), expanded comparison
+  with Aptos/Sui/Near, full governance section (§11) covering current
+  binary-release coordination + SentrixSafe multisig + future on-chain
+  governance + non-governable invariants, risk disclosures (Appendix B),
+  legal notice (Appendix C), and About the Author.
+- **v1.1** — Vision, mission, and protocol depth: state transition function,
   BFT safety/liveness, network model, transaction lifecycle, slashing matrix,
   long-range attack defense, comparison table, parameters appendix.
 - **v1.0** (initial) — Vision-first foundational document; tagline "Where real assets live."
