@@ -30,7 +30,7 @@
 
 \title{\textbf{Sentrix}\\[2pt]\large Blockchain Layer-One untuk Ekonomi Riil}
 \author{Satya Kwok\\\href{mailto:satya@sentrixchain.com}{satya@sentrixchain.com}\\\href{https://sentrixchain.com}{sentrixchain.com}}
-\date{Versi 1.2.1 \quad\textit{(final kecuali ada hard fork chain)}}
+\date{Versi 1.2.2 \quad\textit{(final kecuali ada hard fork chain)}}
 
 \begin{document}
 \maketitle
@@ -155,19 +155,28 @@ Sentrix memelihara binary sparse Merkle tree sebagai representasi state kanonis~
 
 \begin{Verbatim}[fontsize=\footnotesize,frame=single]
 APPLY(S, B):
-  1. Verifikasi header B (parent hash, timestamp, signature proposer).
+  1. Verifikasi header B (parent hash, timestamp, signature proposer,
+     justification supermayoritas pada parent).
   2. Untuk setiap transaksi TX dalam B.txs, secara berurutan:
-       a. Verifikasi signature TX terhadap TX.from.
+       a. Verifikasi TX.signature terhadap canonical_signing_payload(TX).
        b. Verifikasi TX.nonce == S[TX.from].nonce.
-       c. Hitung fee = TX.gas_used x TX.gas_price (jalur EVM)
-                       atau MIN_TX_FEE (jalur native).
-       d. Jika S[TX.from].balance < fee + TX.value: skip.
-       e. Kurangi fee dari TX.from.
-       f. Bakar 50% fee ke BURN_ADDRESS; bayar 50% ke proposer.
-       g. Apply TX (jalur EVM via revm, jalur native via dispatch).
-       h. Update accounts, increment nonce, emit events.
-  3. Hitung state root baru dari trie yang diupdate.
-  4. Verifikasi state root baru cocok dengan B.header.state_root.
+       c. Verifikasi TX.fee >= MIN_TX_FEE.
+       d. Jika S[TX.from].balance < TX.fee + TX.amount: skip.
+       e. Kurangi TX.fee dari TX.from.
+       f. Bakar 50% dari TX.fee ke BURN_ADDRESS; kreditkan 50% sisanya
+          ke PROTOCOL_TREASURY untuk akrual pro-rata ke precommit
+          signer blok (di-claim nanti via ClaimRewards).
+       g. Dispatch TX berdasarkan to_address:
+          - 0x0000…0000  → operasi token native (decode data sebagai JSON).
+          - 0x0000…0100  → operasi staking native (decode data sebagai JSON).
+          - 0x0000…0002  → jalur sistem / claim (mis. ClaimRewards).
+          - lainnya       → dispatch EVM via revm; data adalah payload
+                            call EVM; gas dihitung di dalam revm.
+       h. Jika apply berhasil: update accounts/registries, increment
+          nonce, emit events. Jika gagal: revert state changes dari TX
+          ini (fee debit + 50/50 burn-and-credit tetap berlaku).
+  3. Hitung ulang state root dari trie yang di-update.
+  4. Verifikasi state root yang dihitung cocok dengan B.header.state_root.
   5. Return S' jika semua check lolos; jika tidak, INVALID.
 \end{Verbatim}
 
@@ -181,7 +190,7 @@ Node Sentrix berkomunikasi melalui mesh libp2p~\cite{libp2p}: block gossip pada 
 
 Pilihan desain sentral di Sentrix adalah promosi primitif ekonomi umum dari smart contract menjadi operasi protokol. Tiga biaya dari pendekatan kontrak-untuk-segalanya: overhead eksekusi (transfer token sederhana memerlukan $\sim$21.000 gas plus eksekusi kontrak), overhead keamanan (setiap kontrak harus diaudit independen), dan friksi upgradabilitas.
 
-Set operasi native Sentrix: operasi Token \texttt{SRC-20}; operasi Staking (delegate, undelegate, claim rewards, register validator); transfer Native (\texttt{MIN\_TX\_FEE} = 10.000 sentri = 0,0001 SRX, 50\% dibakar 50\% ke proposer); koordinasi Validator.
+Set operasi native Sentrix: operasi Token \texttt{SRC-20}; operasi Staking (delegate, undelegate, claim rewards, register validator); transfer Native (\texttt{MIN\_TX\_FEE} = 10.000 sentri = 0,0001 SRX, 50\% dibakar dan 50\% dikreditkan ke escrow \texttt{PROTOCOL\_TREASURY} untuk akrual pro-rata ke precommit signer); koordinasi Validator.
 
 \section{Tokenomik}
 
@@ -212,7 +221,7 @@ Era & Tahun & Block reward & Total dikeluarkan \\
 
 \textbf{Jalur native}: \texttt{MIN\_TX\_FEE} flat 10.000 sentri (0,0001 SRX) per transaksi. \textbf{Jalur EVM}: mekanika EIP-1559~\cite{eip1559} standar.
 
-Dari setiap fee yang dibayar, di kedua jalur: \textbf{50\% dihancurkan selamanya} dengan dikirim ke alamat burn yang dapat diverifikasi; \textbf{50\% dibayarkan kepada proposer blok}. Total yang dibakar dapat diamati publik di chain.
+Dari setiap fee yang dibayar, di kedua jalur: \textbf{50\% dihancurkan selamanya} dengan dikirim ke alamat burn yang dapat diverifikasi; \textbf{50\% dikreditkan ke escrow \texttt{PROTOCOL\_TREASURY}} (alamat \texttt{0x0000…0002}) dan diakumulasikan ke para precommit signer dari blok yang berisi transaksi tersebut, pro-rata terhadap stake mereka, di-claim via \texttt{ClaimRewards}. Proposer tidak menerima bagian istimewa --- insentif tetap selaras dengan mencapai finalisasi supermayoritas alih-alih dengan mengusulkan. Total yang dibakar dapat diamati publik di chain.
 
 \subsection{Premine dan Distribusi Awal}
 
@@ -402,7 +411,7 @@ Parameter & Nilai & Catatan \\
 
 Lampiran ini mendokumentasikan risiko yang diketahui. Tidak bersifat exhaustive.
 
-\textbf{Risiko teknis.} Implementasi Rust tunggal: bug dapat memengaruhi seluruh jaringan sampai di-patch; diversitas multi-implementasi tidak ada. Active validator set kecil pada tahap ini.
+\textbf{Risiko teknis.} Implementasi Rust tunggal: bug dapat memengaruhi seluruh jaringan sampai di-patch; diversitas multi-implementasi tidak ada. Active validator set kecil pada tahap ini. Dispatch consensus-jail on-chain saat ini dinonaktifkan (\texttt{JAIL\_CONSENSUS\_HEIGHT} di-set ke sentinel yang mencegah aktivasi) menyusul dua insiden produksi yang ditelusuri ke non-determinisme dalam liveness tracking; jailing untuk downtime dan double-sign tetap tersedia melalui jalur operator manual sampai dispatch tersebut di-engineer ulang dan diaktifkan kembali via hard fork.
 
 \textbf{Risiko ekonomi.} SRX saat ini tidak diperdagangkan di exchange atau DEX mana pun; tidak ada harga pasar. Cap 315 juta adalah konstanta protokol, bukan valuasi pasar. Sampai SentrixSafe berkembang ke N-of-M dan/atau alokasi Founder di-vesting on-chain, alamat Founder dapat memindahkan 21 juta SRX kapan saja.
 

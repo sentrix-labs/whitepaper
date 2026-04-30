@@ -4,7 +4,7 @@
 
 **Penulis:** Satya Kwok &lt;satya@sentrixchain.com&gt;
 **Web:** sentrixchain.com
-**Versi:** 1.2.1 (final kecuali ada hard fork chain)
+**Versi:** 1.2.2 (final kecuali ada hard fork chain)
 
 ---
 
@@ -225,16 +225,21 @@ APPLY(S, B):
   2. Untuk setiap transaksi TX dalam B.txs, secara berurutan:
        a. Verifikasi signature TX terhadap TX.from.
        b. Verifikasi TX.nonce == S[TX.from].nonce.
-       c. Hitung fee = TX.gas_used × TX.gas_price (jalur EVM) atau
-                       MIN_TX_FEE (jalur native).
-       d. Jika S[TX.from].balance < fee + TX.value: skip (insufficient).
-       e. Kurangi fee dari TX.from.
-       f. Bakar 50% fee ke BURN_ADDRESS; bayar 50% ke proposer blok.
-       g. Apply TX:
-          - Jalur EVM: invoke revm dengan TX sebagai call ke TX.to.
-          - Jalur native: dispatch op_type ke handler native.
-       h. Jika apply berhasil: update accounts, increment nonce, emit events.
-          Jika apply gagal: revert account state, charge fee tetap.
+       c. Verifikasi TX.fee >= MIN_TX_FEE.
+       d. Jika S[TX.from].balance < TX.fee + TX.amount: skip (insufficient).
+       e. Kurangi TX.fee dari TX.from.
+       f. Bakar 50% dari TX.fee ke BURN_ADDRESS; kreditkan 50% sisanya
+          ke PROTOCOL_TREASURY untuk akrual pro-rata ke precommit signer
+          blok (di-claim nanti via ClaimRewards).
+       g. Dispatch TX berdasarkan to_address:
+          - 0x0000…0000  → operasi token native (decode data sebagai JSON).
+          - 0x0000…0100  → operasi staking native (decode data sebagai JSON).
+          - 0x0000…0002  → jalur sistem / claim (mis. ClaimRewards).
+          - lainnya       → dispatch EVM via revm; data adalah payload
+                            call EVM; gas dihitung di dalam revm.
+       h. Jika apply berhasil: update accounts/registries, increment
+          nonce, emit events. Jika gagal: revert state changes dari TX ini
+          (fee debit + 50/50 burn-and-credit tetap berlaku).
   3. Hitung state root baru dari trie yang diupdate.
   4. Verifikasi state root baru cocok dengan B.header.state_root.
   5. Return S′ jika semua check lolos; jika tidak, INVALID.
@@ -270,25 +275,37 @@ Mode kegagalan jaringan di bawah partisi well-defined: partisi minoritas berhent
 
 ### 4.5 Format Transaksi
 
-Transaksi Sentrix memiliki struktur berikut:
+Sentrix menggunakan satu format wire transaksi kanonis untuk jalur native dan jalur EVM:
 
 ```
 Transaction {
-    chain_id:  uint16,        // 7119 mainnet, 7120 testnet
-    nonce:     uint64,        // sequence akun pengirim
-    op_type:   uint8,         // 0=transfer native, 1=SRC-20, 2=staking, 3=EVM, dll.
-    from:      address20,     // hex 20-byte berprefix 0x
-    to:        address20,
-    value:     uint64,        // jumlah dalam sentri (1 SRX = 10⁸ sentri) untuk native
-                              // atau wei (1 SRX = 10¹⁸ wei) untuk EVM
-    gas_limit: uint64,        // hanya jalur EVM; ops native menggunakan MIN_TX_FEE
-    gas_price: uint64,        // wei per gas; hanya jalur EVM
-    data:      bytes,         // EVM call data, atau native op payload
-    signature: secp256k1,     // 65 bytes (r, s, v)
+    txid:         hex32,    // SHA-256 dari payload signing kanonis
+    from_address: address,  // hex 20-byte, berprefix "0x"
+    to_address:   address,  // penerima, atau sentinel untuk operasi protokol:
+                            //   0x0000…0000  → operasi token native (SRC-20/721/1155)
+                            //   0x0000…0100  → operasi staking native
+                            //   0x0000…0002  → PROTOCOL_TREASURY (claim/system)
+                            //   selain itu  → dispatch EVM (revm)
+    amount:       uint64,   // sentri  (1 SRX = 10⁸ sentri)
+    fee:          uint64,   // sentri  (≥ MIN_TX_FEE = 10.000)
+    nonce:        uint64,   // sequence akun pengirim
+    data:         string,   // kosong untuk transfer biasa;
+                            // JSON kanonis {"op":"...",...} untuk operasi native;
+                            // payload call EVM standar untuk dispatch EVM
+    timestamp:    uint64,   // unix detik (window anti-replay)
+    chain_id:     uint64,   // 7119 mainnet, 7120 testnet
+    signature:    hex,      // ECDSA secp256k1, 65 bytes (r, s, v)
+    public_key:   hex,      // secp256k1 uncompressed, 65 bytes
 }
 ```
 
-Diskriminator `op_type` mengidentifikasi apakah transaksi menargetkan jalur native atau jalur EVM. Signature diverifikasi terhadap payload signing EIP-155 kanonis, memberikan perlindungan replay lintas chain. Ukuran transaksi maksimum dikonfigurasi pada level protokol; transaksi yang ukurannya berlebihan ditolak oleh mempool.
+Routing ditentukan oleh `to_address`: sekumpulan kecil alamat sentinel mendispatch ke jalur native (token, staking, treasury), dan alamat lainnya mendispatch ke revm dengan `data` sebagai payload call EVM. Ini menjaga format wire seragam — wallet, indexer, dan explorer dapat decode kedua jalur melalui satu skema. Pengguna EVM yang submit `eth_sendRawTransaction` melewati lapisan translation yang membungkus transaksi Ethereum standar ke dalam form Sentrix kanonis ini sebelum masuk mempool; gossip dan finalisasi identik dari sana.
+
+#### 4.5.1 Payload Signing
+
+Signature commit ke serialisasi JSON kanonis dari delapan field konten transaksi: `amount`, `chain_id`, `data`, `fee`, `from`, `nonce`, `timestamp`, `to`. Key di-emit dalam urutan leksikografis dari sorted map, sehingga setiap node yang men-serialize transaksi yang sama menghasilkan byte string yang sama. Byte string di-hash dengan SHA-256, dan digest 32-byte yang dihasilkan ditandatangani dengan ECDSA secp256k1.
+
+`chain_id` adalah bagian dari payload yang ditandatangani (replay-protected lintas jaringan), namun formatnya Sentrix-canonical, bukan EIP-155 RLP. Wallet yang mendukung Sentrix menandatangani payload kanonis ini langsung; jalur EVM-side `eth_sendRawTransaction` memverifikasi signature EIP-155 pada tx Ethereum yang dibungkus secara independen sebelum translation. Ukuran transaksi maksimum dikonfigurasi pada level protokol; transaksi yang ukurannya berlebihan ditolak oleh mempool.
 
 ---
 
@@ -322,24 +339,27 @@ Operasi-operasi ini tetap sepenuhnya dapat diprogram: kontrak EVM dapat memanggi
 
 ### 5.3 Siklus Hidup Transaksi
 
-Untuk membuat arsitektur konkret, pertimbangkan transfer SRC-20 100 token dari Alice ke Bob.
+Untuk membuat arsitektur konkret, pertimbangkan transfer SRC-20 native sebesar 100 token dari token `0xTOK` antara Alice ke Bob.
 
 ```
 Langkah 1 — Susun transaksi
   Dompet Alice membangun:
-    op_type    = 1  (SRC-20)
-    from       = 0xALICE...
-    to         = 0xTOKEN_CONTRACT
-    value      = 0
-    data       = SRC20_TRANSFER || 0xBOB... || 100
-    nonce      = nonce Alice saat ini
-    sig        = sign(payload, alice_sk)
-    fee        = MIN_TX_FEE = 10.000 sentri
+    from_address = 0xALICE...
+    to_address   = 0x0000000000000000000000000000000000000000   (sentinel token-op)
+    amount       = 0                                            (tidak ada SRX bergerak)
+    fee          = MIN_TX_FEE = 10.000 sentri  (= 0,0001 SRX)
+    nonce        = nonce Alice saat ini
+    data         = {"op":"transfer","contract":"0xTOK",
+                    "to":"0xBOB...","amount":100}              (JSON kanonis)
+    timestamp    = now()
+    chain_id     = 7119
+    signature    = secp256k1(SHA-256(canonical_json), alice_sk)
 
 Langkah 2 — Submit
-  Dompet mengirim ke endpoint RPC mana pun.
-  RPC memvalidasi format dasar, menempatkan di mempool.
-  Mempool gossip tx ke peer via libp2p.
+  Dompet mengirim ke endpoint RPC mana pun (sentrix_sendTransaction
+    atau eth_sendRawTransaction untuk jalur EVM).
+  RPC memvalidasi format, signature, dan saldo ≥ fee + amount.
+  Tx masuk mempool; gossip ke peer di sentrix/txs/1.
 
 Langkah 3 — Inklusi blok
   Validator V (proposer untuk ronde berikutnya) menguras mempool.
@@ -349,27 +369,30 @@ Langkah 3 — Inklusi blok
 Langkah 4 — Finalisasi BFT
   Validator aktif menerima proposal, memverifikasinya.
   Setiap validator prevote jika proposal valid.
-  Setelah ≥⅔ prevote teramati, validator precommit.
-  Setelah ≥⅔ precommit teramati, blok N+1 difinalisasi.
+  Setelah ≥ 2/3 prevote teramati, validator precommit.
+  Setelah ≥ 2/3 precommit teramati, blok N+1 difinalisasi.
 
 Langkah 5 — Apply state
   Setiap node menerapkan blok N+1:
-    a. Kurangi 10.000 sentri dari akun Alice.
+    a. Kurangi 10.000 sentri (fee) dari akun Alice.
     b. Bakar 5.000 sentri ke BURN_ADDRESS (50% dari fee).
-    c. Kreditkan 5.000 sentri ke pending rewards validator V (50% dari fee).
-    d. Kurangi saldo token SRC-20 Alice sebesar 100.
-    e. Tambahkan saldo token SRC-20 Bob sebesar 100.
+    c. Kreditkan 5.000 sentri ke PROTOCOL_TREASURY; modul staking
+       mengakumulasinya ke pending_rewards para precommit signer
+       pro-rata terhadap stake mereka (signer claim nanti via
+       ClaimRewards).
+    d. Kurangi saldo SRC-20 Alice untuk token 0xTOK sebesar 100.
+    e. Tambahkan saldo SRC-20 Bob untuk token 0xTOK sebesar 100.
     f. Tambahkan nonce Alice.
     g. Emit Transfer event.
     h. Update state trie root; root baru di-commit di block hash.
 
 Langkah 6 — Konfirmasi
-  Dompet Alice polling RPC; konfirmasi tx di blok yang difinalisasi.
-  Dompet Bob (subscribe via WebSocket) menerima notifikasi.
-  Total waktu dari Langkah 2 ke Langkah 6: ~1–2 detik.
+  Dompet Alice polling RPC; melihat tx di blok yang difinalisasi.
+  Dompet Bob (subscribe via WebSocket sentrix_tokenOps channel)
+    menerima notifikasi. Total waktu Langkah 2 → 6: ~1–2 detik.
 ```
 
-Siklus ini identik secara prinsip untuk transfer native, panggilan kontrak EVM, dan operasi staking—perbedaannya adalah jalur apply mana yang diambil di langkah 5.
+Siklus ini identik secara prinsip untuk transfer SRX biasa (tanpa payload `data`), operasi staking (`to_address = 0x0000…0100`, JSON op di `data`), dan panggilan kontrak EVM (`to_address` = kontrak, `data` = payload call EVM). Perbedaannya adalah jalur apply mana yang diambil di langkah 5.
 
 ---
 
@@ -410,16 +433,18 @@ Dari setiap fee yang dibayar, di kedua jalur:
 
 - **50% dihancurkan selamanya** dengan dikirim ke alamat burn yang dapat diverifikasi, dari mana tidak ada transaksi yang dapat diproduksi. Total yang dibakar dapat diamati publik di chain.
 
-- **50% dibayarkan kepada proposer blok** di mana transaksi disertakan. Ini membentuk komponen variabel reward validator di atas subsidi blok tetap.
+- **50% dikreditkan ke escrow protocol treasury** (`PROTOCOL_TREASURY`, alamat `0x0000…0002`) dan diakumulasikan ke para precommit signer dari blok yang berisi transaksi tersebut, pro-rata terhadap stake mereka. Validator (dan delegator mereka) menarik bagian mereka ke saldo yang dapat dibelanjakan melalui operasi staking eksplisit `ClaimRewards`. Ini adalah pipeline yang sama dengan pembayaran subsidi blok (Bagian 6.5); proposer tidak menerima bagian yang istimewa, yang menjaga insentif tetap selaras dengan mencapai finalisasi supermayoritas alih-alih dengan mengusulkan.
 
 ```
 Gambar 3 — Aliran pembagian fee
 
    tx fee
      │
-     ├──── 50% ───→  BURN_ADDRESS  (dihancurkan selamanya)
+     ├──── 50% ───→  BURN_ADDRESS       (dihancurkan selamanya)
      │
-     └──── 50% ───→  block proposer  (reward yang dapat diklaim)
+     └──── 50% ───→  PROTOCOL_TREASURY  (escrow; pro-rata ke pending_rewards
+                                         para precommit signer berdasarkan
+                                         stake; di-claim via ClaimRewards)
 ```
 
 ### 6.4 Premine dan Distribusi Awal

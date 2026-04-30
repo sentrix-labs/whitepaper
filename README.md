@@ -26,10 +26,20 @@ Requires `texlive-latex-recommended`, `texlive-latex-extra`, `lmodern`, and (for
 
 ## Versions
 
-- **v1.2.1** (current, final unless chain hard-fork) — LaTeX source (.tex)
-  added, contact email `satya@sentrixchain.com`, "Focus Statement" preamble
-  making explicit that Sentrix is financial infrastructure for the real
-  economy and not a speculation venue.
+- **v1.2.2** (current, final unless chain hard-fork) — Technical-accuracy
+  audit pass against the live `sentrix-labs/sentrix` codebase. Fixed the
+  transaction format (single canonical wire format with `to_address`
+  sentinel routing, not the Ethereum-style `op_type` field), corrected
+  the signing claim (canonical-JSON SHA-256 over eight content fields,
+  not EIP-155 RLP), corrected fee distribution (50% accrued to all
+  precommit signers pro-rata via `PROTOCOL_TREASURY` escrow, not paid
+  directly to the proposer), and noted in the risk disclosures that the
+  on-chain consensus-jail dispatch is currently disabled with manual
+  jailing as the operational path.
+- **v1.2.1** — LaTeX source (.tex) added, contact email
+  `satya@sentrixchain.com`, "Focus Statement" preamble making explicit
+  that Sentrix is financial infrastructure for the real economy and not
+  a speculation venue.
 - **v1.2** — Adds genesis allocation addresses (on-chain verifiable),
   validator onboarding requirements (§7.5), incident response model (§7.6),
   privacy posture (§8.7), expanded comparison with Aptos/Sui/Near, full

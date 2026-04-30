@@ -4,7 +4,7 @@
 
 **Author:** Satya Kwok &lt;satya@sentrixchain.com&gt;
 **Web:** sentrixchain.com
-**Version:** 1.2.1 (final unless chain hard-fork)
+**Version:** 1.2.2 (final unless chain hard-fork)
 
 ---
 
@@ -220,23 +220,29 @@ A Sentrix block applies a sequence of transactions to a prior state to produce a
 
 ```
 APPLY(S, B):
-  1. Verify B's header (parent hash, timestamp, proposer signature).
+  1. Verify B's header (parent hash, timestamp, proposer signature,
+     justification supermajority on parent).
   2. For each transaction TX in B.txs, in order:
-       a. Verify TX signature against TX.from.
+       a. Verify TX.signature over canonical_signing_payload(TX).
        b. Verify TX.nonce == S[TX.from].nonce.
-       c. Compute fee = TX.gas_used × TX.gas_price (EVM rail) or
-                       MIN_TX_FEE (native rail).
-       d. If S[TX.from].balance < fee + TX.value: skip (insufficient).
-       e. Deduct fee from TX.from.
-       f. Burn 50% of fee to BURN_ADDRESS; pay 50% to block proposer.
-       g. Apply TX:
-          - EVM rail: invoke revm with TX as call into TX.to.
-          - Native rail: dispatch op_type to native handler.
-       h. If apply succeeds: update accounts, increment nonce, emit events.
-          If apply fails: revert account state, charge fee anyway.
-  3. Compute new state root from updated trie.
-  4. Verify new state root matches B.header.state_root.
-  5. Return S′ if all checks pass; else INVALID.
+       c. Verify TX.fee ≥ MIN_TX_FEE.
+       d. If S[TX.from].balance < TX.fee + TX.amount: skip (insufficient).
+       e. Deduct TX.fee from TX.from.
+       f. Burn 50% of TX.fee to BURN_ADDRESS; credit the remaining 50%
+          to PROTOCOL_TREASURY for pro-rata accrual to the block's
+          precommit signers (claimed later via ClaimRewards).
+       g. Dispatch TX by to_address:
+          - 0x0000…0000  → native token op (decode data as JSON op).
+          - 0x0000…0100  → native staking op (decode data as JSON op).
+          - 0x0000…0002  → system / claim path (e.g. ClaimRewards).
+          - any other     → EVM dispatch via revm; data is the EVM call
+                            payload; gas accounted inside revm.
+       h. If apply succeeds: update accounts/registries, increment nonce,
+          emit events. If apply fails: revert state changes from this TX
+          (the fee debit + 50/50 burn-and-credit still stand).
+  3. Recompute the state root from the updated trie.
+  4. Verify the recomputed state root matches B.header.state_root.
+  5. Return S′ if all checks pass; otherwise INVALID.
 ```
 
 The function is deterministic: every node executing the same `S` and `B` produces bit-identical `S′`. This determinism is the property that allows independent nodes to verify each other's claims about chain state.
@@ -269,25 +275,37 @@ The network's failure mode under partition is well-defined: a minority partition
 
 ### 4.5 Transaction Format
 
-A Sentrix transaction has the following structure:
+Sentrix uses a single canonical transaction wire format for both the native rail and the EVM rail:
 
 ```
 Transaction {
-    chain_id:  uint16,        // 7119 mainnet, 7120 testnet
-    nonce:     uint64,        // sender's account sequence
-    op_type:   uint8,         // 0=native transfer, 1=SRC-20, 2=staking, 3=EVM, etc.
-    from:      address20,     // 0x-prefixed 20-byte hex
-    to:        address20,
-    value:     uint64,        // amount in sentri (1 SRX = 10⁸ sentri) for native
-                              // or wei (1 SRX = 10¹⁸ wei) for EVM
-    gas_limit: uint64,        // EVM rail only; native ops use MIN_TX_FEE
-    gas_price: uint64,        // wei per gas; EVM rail only
-    data:      bytes,         // EVM call data, or native op payload
-    signature: secp256k1,     // 65 bytes (r, s, v)
+    txid:         hex32,    // SHA-256 of canonical signing payload
+    from_address: address,  // 20-byte hex, "0x"-prefixed
+    to_address:   address,  // recipient, or sentinel for protocol op:
+                            //   0x0000…0000  → native token op (SRC-20/721/1155)
+                            //   0x0000…0100  → native staking op
+                            //   0x0000…0002  → PROTOCOL_TREASURY (claim/system)
+                            //   anything else → EVM dispatch (revm)
+    amount:       uint64,   // sentri  (1 SRX = 10⁸ sentri)
+    fee:          uint64,   // sentri  (≥ MIN_TX_FEE = 10,000)
+    nonce:        uint64,   // sender account sequence
+    data:         string,   // empty for plain transfers;
+                            // canonical JSON {"op":"...",...} for native ops;
+                            // standard EVM call payload for EVM dispatch
+    timestamp:    uint64,   // unix seconds (anti-replay window)
+    chain_id:     uint64,   // 7119 mainnet, 7120 testnet
+    signature:    hex,      // secp256k1 ECDSA, 65 bytes (r, s, v)
+    public_key:   hex,      // secp256k1 uncompressed, 65 bytes
 }
 ```
 
-The `op_type` discriminator identifies whether the transaction targets the native rail or the EVM rail. The signature is verified against the canonical EIP-155 signing payload, providing replay protection across chains. Maximum transaction size is configured at the protocol level; oversize transactions are rejected by the mempool.
+Routing is determined by `to_address`: a small set of sentinel addresses dispatches to the native rail (token, staking, treasury), and any other address dispatches to revm with `data` as the EVM call payload. This keeps the wire format uniform — wallets, indexers, and explorers can decode both rails through one schema. EVM users who submit `eth_sendRawTransaction` hit a translation layer that wraps the standard Ethereum transaction into this canonical Sentrix form before mempool entry; gossip and finalization are identical from there on.
+
+#### 4.5.1 Signing Payload
+
+The signature commits to a canonical JSON serialization of the transaction's eight content fields: `amount`, `chain_id`, `data`, `fee`, `from`, `nonce`, `timestamp`, `to`. Keys are emitted in lexicographic order from a sorted map, so any node serializing the same transaction produces the same byte string. The byte string is hashed with SHA-256, and the resulting 32-byte digest is signed with secp256k1 ECDSA.
+
+`chain_id` is part of the signed payload (replay-protected across networks), but the format is Sentrix-canonical, not EIP-155 RLP. Wallets supporting Sentrix sign this canonical payload directly; the EVM-side `eth_sendRawTransaction` path verifies the EIP-155 signature on the wrapped Ethereum tx independently before translation. Maximum transaction size is configured at the protocol level; oversized transactions are rejected by the mempool.
 
 ---
 
@@ -321,54 +339,59 @@ These operations remain fully programmable: an EVM contract can call them throug
 
 ### 5.3 Lifecycle of a Transaction
 
-To make the architecture concrete, consider an SRC-20 transfer of 100 tokens from Alice to Bob.
+To make the architecture concrete, consider a native SRC-20 transfer of 100 tokens of token `0xTOK` from Alice to Bob.
 
 ```
 Step 1 — Compose transaction
   Alice's wallet builds:
-    op_type    = 1  (SRC-20)
-    from       = 0xALICE...
-    to         = 0xTOKEN_CONTRACT
-    value      = 0
-    data       = SRC20_TRANSFER || 0xBOB... || 100
-    nonce      = current Alice nonce
-    sig        = sign(payload, alice_sk)
-    fee        = MIN_TX_FEE = 10,000 sentri
+    from_address = 0xALICE...
+    to_address   = 0x0000000000000000000000000000000000000000   (token-op sentinel)
+    amount       = 0                                            (no SRX moves)
+    fee          = MIN_TX_FEE = 10,000 sentri  (= 0.0001 SRX)
+    nonce        = Alice's current nonce
+    data         = {"op":"transfer","contract":"0xTOK",
+                    "to":"0xBOB...","amount":100}              (canonical JSON)
+    timestamp    = now()
+    chain_id     = 7119
+    signature    = secp256k1(SHA-256(canonical_json), alice_sk)
 
 Step 2 — Submit
-  Wallet sends to any RPC endpoint.
-  RPC validates basic format, places in mempool.
-  Mempool gossips tx to peers via libp2p.
+  Wallet sends to any RPC endpoint (sentrix_sendTransaction or
+    eth_sendRawTransaction for the EVM rail).
+  RPC validates format, signature, and balance ≥ fee + amount.
+  Tx enters the mempool; gossiped to peers on sentrix/txs/1.
 
 Step 3 — Block inclusion
-  Validator V (proposer for next round) drains mempool.
+  Validator V (proposer for the next round) drains mempool.
   V constructs block N+1 containing Alice's tx + others.
-  V proposes block N+1 to active set.
+  V proposes block N+1 to the active set.
 
 Step 4 — BFT finalization
-  Active validators receive proposal, verify it.
-  Each validator prevotes if proposal is valid.
-  Once ≥⅔ prevotes observed, validators precommit.
-  Once ≥⅔ precommits observed, block N+1 is final.
+  Active validators receive the proposal, verify it.
+  Each validator prevotes if the proposal is valid.
+  Once ≥ 2/3 prevotes observed, validators precommit.
+  Once ≥ 2/3 precommits observed, block N+1 is finalized.
 
 Step 5 — State application
   Each node applies block N+1:
-    a. Deduct 10,000 sentri from Alice's account.
+    a. Deduct 10,000 sentri (the fee) from Alice's account.
     b. Burn 5,000 sentri to BURN_ADDRESS (50% of fee).
-    c. Credit 5,000 sentri to validator V's pending rewards (50% of fee).
-    d. Decrement Alice's SRC-20 token balance by 100.
-    e. Increment Bob's SRC-20 token balance by 100.
+    c. Credit 5,000 sentri to PROTOCOL_TREASURY; the staking
+       module accrues it to the precommit signers' pending_rewards
+       pro-rata to their stake (signers claim later via ClaimRewards).
+    d. Decrement Alice's SRC-20 balance for token 0xTOK by 100.
+    e. Increment Bob's SRC-20 balance for token 0xTOK by 100.
     f. Increment Alice's nonce.
     g. Emit Transfer event.
     h. Update state trie root; new root committed in block hash.
 
 Step 6 — Confirmation
-  Alice's wallet polls RPC; confirms tx is in finalized block.
-  Bob's wallet (subscribed via WebSocket) receives notification.
-  Total time from Step 2 to Step 6: ~1–2 seconds.
+  Alice's wallet polls RPC; confirms tx is in a finalized block.
+  Bob's wallet (subscribed via WebSocket sentrix_tokenOps channel) is
+    notified. Total time from Step 2 to Step 6: ~1–2 seconds.
 ```
 
-This lifecycle is identical in principle for native transfers, EVM contract calls, and staking operations—the differences are which apply path is taken in step 5.
+This lifecycle is identical in principle for plain SRX transfers (no `data` payload), staking operations (`to_address = 0x0000…0100`, JSON op in `data`), and EVM contract calls (`to_address` = the contract, `data` = the EVM call payload). The difference is which apply path is taken in step 5.
 
 ---
 
@@ -409,16 +432,18 @@ Of every fee paid, on both rails:
 
 - **50% is destroyed forever** by sending to a verifiable burn address from which no transaction can be produced. The total burned is publicly observable on chain.
 
-- **50% is paid to the proposer of the block** in which the transaction was included. This forms the variable component of validator rewards on top of the fixed block subsidy.
+- **50% is credited to the protocol treasury escrow** (`PROTOCOL_TREASURY`, address `0x0000…0002`) and accrued to the precommit signers of the containing block, pro-rata to their stake. Validators (and their delegators) drain their share into spendable balance via an explicit `ClaimRewards` staking operation. This is the same pipeline as the block-subsidy payout (Section 6.5); the proposer does not receive a privileged share, which keeps the incentive aligned with reaching supermajority finalization rather than with proposing.
 
 ```
 Figure 3 — Fee split flow
 
    tx fee
      │
-     ├──── 50% ───→  BURN_ADDRESS  (destroyed forever)
+     ├──── 50% ───→  BURN_ADDRESS       (destroyed forever)
      │
-     └──── 50% ───→  block proposer  (claimable rewards)
+     └──── 50% ───→  PROTOCOL_TREASURY  (escrow; pro-rata to precommit
+                                         signers' pending_rewards by stake;
+                                         claimable via StakingOp::ClaimRewards)
 ```
 
 The destruction of half of every fee is the deflationary mechanism. As network activity grows, the rate of destruction grows proportionally, and circulating supply may begin to contract while the fixed block reward contributes new issuance. At sufficient activity, the chain reaches a deflationary equilibrium.
@@ -598,7 +623,7 @@ The model assumes no failure modes outside this set are silent: any deviation fr
 
 Sentrix is **transparent by design**. Every transaction, balance, and contract call is publicly observable. This is a deliberate choice: the chain serves real-economy settlement, where audit trails are a feature rather than a liability. We do not attempt to provide built-in privacy primitives (zk-shielded transactions, anonymous balances, mixers).
 
-Users who require privacy for specific use cases can build it on top: zk-rollup contracts, privacy-preserving DApps, off-chain commitments verified on-chain. The base layer remains observable; privacy is opt-in at the application layer.
+Users who require privacy for specific use cases can build it on top: zk-rollup contracts, privacy-preserving dApps, off-chain commitments verified on-chain. The base layer remains observable; privacy is opt-in at the application layer.
 
 This design choice has tradeoffs. Transparent chains are easier to audit, easier to integrate with regulatory frameworks, and easier to reason about at the protocol level. They are less suitable for operators who require mandatory privacy (witness protection, victim of harassment, sensitive commercial counterparties). Sentrix accepts the tradeoff in favor of regulatory legibility.
 
