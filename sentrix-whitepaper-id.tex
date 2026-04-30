@@ -30,7 +30,7 @@
 
 \title{\textbf{Sentrix}\\[2pt]\large Blockchain Layer-One untuk Ekonomi Riil}
 \author{Satya Kwok\\\href{mailto:satya@sentrixchain.com}{satya@sentrixchain.com}\\\href{https://sentrixchain.com}{sentrixchain.com}}
-\date{Versi 1.2.2 \quad\textit{(final kecuali ada hard fork chain)}}
+\date{Versi 1.2.3 \quad\textit{(final kecuali ada hard fork chain)}}
 
 \begin{document}
 \maketitle
@@ -164,8 +164,9 @@ APPLY(S, B):
        d. Jika S[TX.from].balance < TX.fee + TX.amount: skip.
        e. Kurangi TX.fee dari TX.from.
        f. Bakar 50% dari TX.fee ke BURN_ADDRESS; kreditkan 50% sisanya
-          ke PROTOCOL_TREASURY untuk akrual pro-rata ke precommit
-          signer blok (di-claim nanti via ClaimRewards).
+          langsung ke saldo proposer blok. (Block subsidy mengikuti
+          jalur terpisah: di-mint ke PROTOCOL_TREASURY pada akhir blok
+          dan diakumulasikan pro-rata ke precommit signer.)
        g. Dispatch TX berdasarkan to_address:
           - 0x0000…0000  → operasi token native (decode data sebagai JSON).
           - 0x0000…0100  → operasi staking native (decode data sebagai JSON).
@@ -221,7 +222,7 @@ Era & Tahun & Block reward & Total dikeluarkan \\
 
 \textbf{Jalur native}: \texttt{MIN\_TX\_FEE} flat 10.000 sentri (0,0001 SRX) per transaksi. \textbf{Jalur EVM}: mekanika EIP-1559~\cite{eip1559} standar.
 
-Dari setiap fee yang dibayar, di kedua jalur: \textbf{50\% dihancurkan selamanya} dengan dikirim ke alamat burn yang dapat diverifikasi; \textbf{50\% dikreditkan ke escrow \texttt{PROTOCOL\_TREASURY}} (alamat \texttt{0x0000…0002}) dan diakumulasikan ke para precommit signer dari blok yang berisi transaksi tersebut, pro-rata terhadap stake mereka, di-claim via \texttt{ClaimRewards}. Proposer tidak menerima bagian istimewa --- insentif tetap selaras dengan mencapai finalisasi supermayoritas alih-alih dengan mengusulkan. Total yang dibakar dapat diamati publik di chain.
+Dari setiap fee yang dibayar, di kedua jalur: \textbf{50\% dihancurkan selamanya} dengan dikirim ke alamat burn yang dapat diverifikasi (total yang dibakar dapat diamati publik di chain); \textbf{50\% dikreditkan langsung ke proposer blok} yang memasukkan transaksi tersebut (saldo yang langsung dapat dibelanjakan). Ini adalah komponen variabel pendapatan validator di atas subsidi blok yang tetap. Block subsidy sendiri mengikuti jalur berbeda: di-mint ke escrow protocol-treasury dan diakumulasikan pro-rata ke precommit signer blok, yang di-claim via operasi staking eksplisit (§6.5).
 
 \subsection{Premine dan Distribusi Awal}
 
@@ -232,25 +233,23 @@ Premine sebesar 63 juta SRX---20\% dari cap pasokan---dialokasikan saat genesis.
 \small
 \begin{tabularx}{\textwidth}{lrlX}
 \toprule
-Peran & Jumlah & Alamat (saat ini) & Tujuan \\
+Peran & Jumlah & Alamat (pemegang saat ini) & Tujuan tingkat tinggi \\
 \midrule
-Founder & 21M SRX & \texttt{0x5b5b...279d} & Treasury, pengembangan awal, kelangsungan operasional \\
-Early Validator & 10,5M SRX & \texttt{0x328d...fa47} & Bootstrap validator awal, seeding reward \\
-Ecosystem Fund & 21M SRX & \texttt{0xeb70...9f14} & Hibah, hadiah hackathon, integrasi kemitraan \\
-Reserve & 10,5M SRX & \texttt{0x2578...ba97} & Cadangan strategis di bawah multi-signature \\
+Founder & 21M SRX & \texttt{0x5b5b...279d} & Treasury operasional jangka panjang \\
+Early Validator & 10,5M SRX & \texttt{0x328d...fa47} & Pool insentif validator \\
+Ecosystem Fund & 21M SRX & \texttt{0xeb70...9f14} & Hibah ekosistem dan budget pertumbuhan \\
+Reserve & 10,5M SRX & \texttt{0x2578...ba97} & Cadangan strategis \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Sisa 80\% pasokan (252 juta SRX) diterbitkan melalui block reward selama kira-kira 24 tahun.
+Sisa 80\% pasokan (252 juta SRX) diterbitkan melalui block reward selama kira-kira 24 tahun. Kebijakan sub-alokasi terperinci (program hibah, budget listing, kampanye airdrop, pengaturan custody, komitmen vesting) berada di dokumen tokenomik operasional yang dipublikasikan di \href{https://sentrixchain.com/docs/tokenomics}{\texttt{sentrixchain.com/docs/tokenomics}}; dokumen tersebut berkembang seiring chain matang, sementara empat jumlah dan cap di atas tidak berubah.
 
-\textbf{Vesting:} Premine tidak memiliki jadwal vesting on-chain. Alokasi Founder secara operasional diperlakukan sebagai posisi jangka panjang oleh penulis---bukan posisi yang dapat diperdagangkan---namun ini adalah komitmen perilaku, bukan paksaan protokol.
+\textbf{Vesting.} Premine tidak memiliki jadwal vesting on-chain. Alokasi Founder secara operasional diperlakukan sebagai posisi jangka panjang oleh penulis, bukan posisi yang dapat diperdagangkan, namun ini adalah komitmen perilaku, bukan paksaan protokol. Baca dokumen tokenomik operasional untuk skedul komitmen saat ini, audit alamatnya on-chain, dan putuskan kepercayaan Anda sesuai itu.
 
-\textbf{Manajemen treasury.} Ecosystem Fund (21 juta SRX) adalah anggaran ekspansi utama. Penggunaan yang dimaksudkan, dalam urutan prioritas: (1) seed likuiditas untuk pool DEX SRX/stablecoin pertama, (2) hadiah hackathon dan hibah developer hingga 100K SRX per proyek, (3) subsidi integrasi kemitraan, (4) hibah infrastruktur untuk validator independen.
+\subsection{Routing Block Subsidy}
 
-\subsection{Routing Reward}
-
-Block reward tidak membayar validator secara langsung. Mereka dikreditkan ke escrow treasury protokol, dari mana validator dan delegator mereka mengklaim earning yang terakumulasi melalui operasi staking.
+Block subsidy tidak membayar validator secara langsung. Mereka dikreditkan ke escrow protocol-treasury, lalu diakumulasikan pro-rata ke saldo pending-rewards setiap validator yang menandatangani precommit blok (delegator mewarisi akrual validator mereka, dikurangi komisi). Validator dan delegator menarik ke saldo yang dapat dibelanjakan melalui operasi staking eksplisit. Desain ini menjaga invarian pasokan --- SRX baru masuk sirkulasi hanya saat di-claim, tidak pernah saat diproduksi --- dan memberikan batas akuntansi yang bersih antara penerbitan dan distribusi.
 
 \section{Ekonomi Validator}
 

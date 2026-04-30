@@ -26,16 +26,20 @@ Requires `texlive-latex-recommended`, `texlive-latex-extra`, `lmodern`, and (for
 
 ## Versions
 
-- **v1.2.2** (current, final unless chain hard-fork) — Technical-accuracy
-  audit pass against the live `sentrix-labs/sentrix` codebase. Fixed the
-  transaction format (single canonical wire format with `to_address`
-  sentinel routing, not the Ethereum-style `op_type` field), corrected
-  the signing claim (canonical-JSON SHA-256 over eight content fields,
-  not EIP-155 RLP), corrected fee distribution (50% accrued to all
-  precommit signers pro-rata via `PROTOCOL_TREASURY` escrow, not paid
-  directly to the proposer), and noted in the risk disclosures that the
-  on-chain consensus-jail dispatch is currently disabled with manual
-  jailing as the operational path.
+- **v1.2.3** (current, final unless chain hard-fork) — Two corrections.
+  First, the §6.4 premine table no longer carries fabricated
+  sub-allocation strings ("market-making seed", "DEX liquidity
+  bootstrap", "under multi-signature control") — those operational
+  details belong in the mutable `sentrixchain.com/docs/tokenomics` page,
+  not in the stable whitepaper. Second, reverted the v1.2.2 fee-routing
+  description: the actual chain credits the 50% non-burn fee share
+  directly to the block proposer's balance (immediate spendable). It is
+  the block subsidy (1 SRX coinbase), not the fee, that goes through
+  PROTOCOL_TREASURY for pro-rata distribution to precommit signers.
+  v1.2.2 conflated the two paths.
+- **v1.2.2** — Technical-accuracy audit pass: transaction format,
+  signing payload, and a JAIL_CONSENSUS risk note. (Note: this version
+  introduced the fee-routing inaccuracy that v1.2.3 corrects.)
 - **v1.2.1** — LaTeX source (.tex) added, contact email
   `satya@sentrixchain.com`, "Focus Statement" preamble making explicit
   that Sentrix is financial infrastructure for the real economy and not

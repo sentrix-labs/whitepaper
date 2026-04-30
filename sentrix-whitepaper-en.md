@@ -4,7 +4,7 @@
 
 **Author:** Satya Kwok &lt;satya@sentrixchain.com&gt;
 **Web:** sentrixchain.com
-**Version:** 1.2.2 (final unless chain hard-fork)
+**Version:** 1.2.3 (final unless chain hard-fork)
 
 ---
 
@@ -229,8 +229,9 @@ APPLY(S, B):
        d. If S[TX.from].balance < TX.fee + TX.amount: skip (insufficient).
        e. Deduct TX.fee from TX.from.
        f. Burn 50% of TX.fee to BURN_ADDRESS; credit the remaining 50%
-          to PROTOCOL_TREASURY for pro-rata accrual to the block's
-          precommit signers (claimed later via ClaimRewards).
+          directly to the block proposer's balance. (The block subsidy
+          follows a separate path: minted into PROTOCOL_TREASURY at the
+          end of the block and accrued pro-rata to precommit signers.)
        g. Dispatch TX by to_address:
           - 0x0000…0000  → native token op (decode data as JSON op).
           - 0x0000…0100  → native staking op (decode data as JSON op).
@@ -376,14 +377,16 @@ Step 5 — State application
   Each node applies block N+1:
     a. Deduct 10,000 sentri (the fee) from Alice's account.
     b. Burn 5,000 sentri to BURN_ADDRESS (50% of fee).
-    c. Credit 5,000 sentri to PROTOCOL_TREASURY; the staking
-       module accrues it to the precommit signers' pending_rewards
-       pro-rata to their stake (signers claim later via ClaimRewards).
+    c. Credit 5,000 sentri directly to validator V's balance
+       (the proposer's variable revenue, immediately spendable).
     d. Decrement Alice's SRC-20 balance for token 0xTOK by 100.
     e. Increment Bob's SRC-20 balance for token 0xTOK by 100.
     f. Increment Alice's nonce.
     g. Emit Transfer event.
     h. Update state trie root; new root committed in block hash.
+       (Separately, at the end of the block, the 1 SRX block subsidy
+        is minted into PROTOCOL_TREASURY and accrued pro-rata to the
+        precommit signers — they claim via ClaimRewards later.)
 
 Step 6 — Confirmation
   Alice's wallet polls RPC; confirms tx is in a finalized block.
@@ -430,20 +433,20 @@ Every transaction pays a fee. The fee model differs by execution rail:
 
 Of every fee paid, on both rails:
 
-- **50% is destroyed forever** by sending to a verifiable burn address from which no transaction can be produced. The total burned is publicly observable on chain.
+- **50% is destroyed forever** by being sent to a verifiable burn address from which no transaction can be produced. The total burned is publicly observable on chain.
 
-- **50% is credited to the protocol treasury escrow** (`PROTOCOL_TREASURY`, address `0x0000…0002`) and accrued to the precommit signers of the containing block, pro-rata to their stake. Validators (and their delegators) drain their share into spendable balance via an explicit `ClaimRewards` staking operation. This is the same pipeline as the block-subsidy payout (Section 6.5); the proposer does not receive a privileged share, which keeps the incentive aligned with reaching supermajority finalization rather than with proposing.
+- **50% is credited directly to the proposer of the block** that included the transaction (immediate spendable balance). This is the variable component of validator revenue on top of the fixed block subsidy.
+
+The block subsidy itself follows a different path: it mints into a protocol-treasury escrow and accrues pro-rata to the block's precommit signers, who claim through an explicit staking operation (Section 6.5). Fees and subsidy are intentionally split this way — proposing is paid for in real time so validators see immediate revenue, while the subsidy is escrowed so its supply expansion enters circulation only when claimed.
 
 ```
-Figure 3 — Fee split flow
+Figure 3 — Fee split flow (per transaction)
 
    tx fee
      │
-     ├──── 50% ───→  BURN_ADDRESS       (destroyed forever)
+     ├──── 50% ───→  BURN_ADDRESS    (destroyed forever)
      │
-     └──── 50% ───→  PROTOCOL_TREASURY  (escrow; pro-rata to precommit
-                                         signers' pending_rewards by stake;
-                                         claimable via StakingOp::ClaimRewards)
+     └──── 50% ───→  block proposer  (immediate spendable balance)
 ```
 
 The destruction of half of every fee is the deflationary mechanism. As network activity grows, the rate of destruction grows proportionally, and circulating supply may begin to contract while the fixed block reward contributes new issuance. At sufficient activity, the chain reaches a deflationary equilibrium.
@@ -452,36 +455,34 @@ The destruction of half of every fee is the deflationary mechanism. As network a
 
 A premine of 63 million SRX—20% of the supply cap—was allocated at genesis across four roles. All allocation addresses are public and verifiable on chain:
 
-| Role | Amount | Address | Purpose |
-|------|--------|---------|---------|
-| Founder | 21M SRX | `0x5b5b06688dcdbe532353ac610aaff41af825279d` | Treasury, initial development, operational continuity, market-making seed |
-| Early Validator | 10.5M SRX | `0x328d56b8174697ef6c9e40e19b7663797e16fa47` | Initial validator bootstrap, reward seeding, infrastructure costs |
-| Ecosystem Fund | 21M SRX | `0xeb70fdefd00fdb768dec06c478f450c351499f14` | Grants, hackathon prizes, partnership integrations, DEX liquidity bootstrap |
-| Reserve | 10.5M SRX | `0x2578cad17e3e56c2970a5b5eab45952439f5ba97` | Strategic reserve under multi-signature control, contingency, future raises |
+| Role | Amount | Address (current holder) | High-level purpose |
+|------|--------|--------------------------|--------------------|
+| Founder | 21M SRX | `0x5b5b06688dcdbe532353ac610aaff41af825279d` | Long-term operating treasury |
+| Early Validator | 10.5M SRX | `0x328d56b8174697ef6c9e40e19b7663797e16fa47` | Validator incentive pool |
+| Ecosystem Fund | 21M SRX | `0xeb70fdefd00fdb768dec06c478f450c351499f14` | Ecosystem grants and growth budget |
+| Reserve | 10.5M SRX | `0x2578cad17e3e56c2970a5b5eab45952439f5ba97` | Strategic reserve |
 
-The remaining 80% of supply (252M SRX) issues through block rewards over approximately 24 years, after which no further SRX is issued.
+The remaining 80% of supply (252M SRX) issues through block rewards over approximately 24 years, after which no further SRX is issued. Detailed sub-allocation policies (grant programs, listing budgets, airdrop campaigns, custody arrangements, vesting commitments) live in the operational tokenomics document published at [sentrixchain.com/docs/tokenomics](https://sentrixchain.com/docs/tokenomics); that document evolves as the chain matures, while the four amounts and the cap above do not.
 
-**Vesting:** The premine has no on-chain vesting schedule. The Founder allocation is operationally treated as a long-term holding by the author—not a tradable position—but this is a behavioral commitment, not a protocol enforcement. Read this paper, audit the addresses, decide your trust accordingly. Future N-of-M multisig migration may impose enforced vesting on a portion of the Founder allocation; until that ships, the allocation is unilaterally controllable.
-
-**Treasury management.** The Ecosystem Fund (21M SRX) is the primary expansion budget. Intended uses, in priority order: (1) seed liquidity for the first SRX/stablecoin DEX pool when the bridge protocol is live, (2) hackathon prizes and developer grants up to 100K SRX per project, (3) partnership integration subsidies with real-economy counterparties, (4) infrastructure grants for independent validators. Disbursements are visible on chain; the spending pattern over time is the public accountability mechanism.
+**Vesting.** The premine has no on-chain vesting schedule. The Founder allocation is operationally treated as a long-term holding by the author, not a tradable position, but this is a behavioral commitment, not a protocol enforcement. Read the operational tokenomics document for the current commitment schedule, audit the addresses on chain, and decide your trust accordingly.
 
 ### 6.5 Reward Routing
 
 ```
-Figure 4 — Reward routing
+Figure 4 — Block subsidy routing
 
-   block N            PROTOCOL_TREASURY        StakingOp::ClaimRewards
-   ────────  →  ───────────────────────  →   ────────────────────────
-   1 SRW reward       (escrow account)        Validator earns: net of
-   ↓                                          commission rate.
-   credited to                                Delegators earn: prorata
-   PROTOCOL_TREASURY                          to delegated stake.
-   instead of                                 Both claim explicitly via
-   directly to                                signed transactions.
+   block N             PROTOCOL_TREASURY        StakingOp::ClaimRewards
+   ─────────   →  ───────────────────────  →   ─────────────────────────
+   1 SRX subsidy       (escrow account)        Each precommit signer
+   ↓                                           accrues pending_rewards
+   minted into                                 pro-rata to their stake.
+   PROTOCOL_TREASURY                           Validators and delegators
+   instead of                                  claim explicitly via
+   directly to                                 signed transactions.
    validator
 ```
 
-Block rewards do not pay validators directly. They are credited to a protocol treasury escrow, from which validators and their delegators claim accrued earnings through staking operations. This design preserves the supply invariant—new SRX enters circulation only when claimed, never when produced—and provides a clean accounting boundary between issuance and distribution.
+Block subsidies do not pay validators directly. They are credited to a protocol-treasury escrow, then accrued pro-rata into the pending-rewards balance of every validator that signed the block's precommit (delegators inherit their validator's accrual, minus commission). Validators and delegators drain into spendable balance through an explicit staking operation. This design preserves the supply invariant — new SRX enters circulation only when claimed, never when produced — and provides a clean accounting boundary between issuance and distribution.
 
 ---
 

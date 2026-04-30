@@ -172,7 +172,7 @@
 <h3 id="blockchain-layer-one-untuk-ekonomi-riil">Blockchain Layer-One
 untuk Ekonomi Riil</h3>
 <p><strong>Penulis:</strong> Satya Kwok &lt;satya@sentrixchain.com&gt;
-<strong>Web:</strong> sentrixchain.com <strong>Versi:</strong> 1.2.2
+<strong>Web:</strong> sentrixchain.com <strong>Versi:</strong> 1.2.3
 (final kecuali ada hard fork chain)</p>
 <hr />
 <h2 id="abstrak">Abstrak</h2>
@@ -528,8 +528,9 @@ untuk menghasilkan state baru. Secara formal, fungsi transisi state
        d. Jika S[TX.from].balance &lt; TX.fee + TX.amount: skip (insufficient).
        e. Kurangi TX.fee dari TX.from.
        f. Bakar 50% dari TX.fee ke BURN_ADDRESS; kreditkan 50% sisanya
-          ke PROTOCOL_TREASURY untuk akrual pro-rata ke precommit signer
-          blok (di-claim nanti via ClaimRewards).
+          langsung ke saldo proposer blok. (Block subsidy mengikuti
+          jalur terpisah: di-mint ke PROTOCOL_TREASURY pada akhir blok
+          dan diakumulasikan pro-rata ke precommit signer.)
        g. Dispatch TX berdasarkan to_address:
           - 0x0000…0000  → operasi token native (decode data sebagai JSON).
           - 0x0000…0100  → operasi staking native (decode data sebagai JSON).
@@ -722,15 +723,16 @@ Langkah 5 — Apply state
   Setiap node menerapkan blok N+1:
     a. Kurangi 10.000 sentri (fee) dari akun Alice.
     b. Bakar 5.000 sentri ke BURN_ADDRESS (50% dari fee).
-    c. Kreditkan 5.000 sentri ke PROTOCOL_TREASURY; modul staking
-       mengakumulasinya ke pending_rewards para precommit signer
-       pro-rata terhadap stake mereka (signer claim nanti via
-       ClaimRewards).
+    c. Kreditkan 5.000 sentri langsung ke saldo validator V
+       (pendapatan variabel proposer, langsung dapat dibelanjakan).
     d. Kurangi saldo SRC-20 Alice untuk token 0xTOK sebesar 100.
     e. Tambahkan saldo SRC-20 Bob untuk token 0xTOK sebesar 100.
     f. Tambahkan nonce Alice.
     g. Emit Transfer event.
     h. Update state trie root; root baru di-commit di block hash.
+       (Terpisah, pada akhir blok, subsidy 1 SRX di-mint ke
+        PROTOCOL_TREASURY dan diakumulasikan pro-rata ke precommit
+        signer — mereka claim via ClaimRewards nanti.)
 
 Langkah 6 — Konfirmasi
   Dompet Alice polling RPC; melihat tx di blok yang difinalisasi.
@@ -820,26 +822,24 @@ plus tip yang ditetapkan pengirim.
 alamat burn yang dapat diverifikasi, dari mana tidak ada transaksi yang
 dapat diproduksi. Total yang dibakar dapat diamati publik di
 chain.</p></li>
-<li><p><strong>50% dikreditkan ke escrow protocol treasury</strong>
-(<code>PROTOCOL_TREASURY</code>, alamat <code>0x0000…0002</code>) dan
-diakumulasikan ke para precommit signer dari blok yang berisi transaksi
-tersebut, pro-rata terhadap stake mereka. Validator (dan delegator
-mereka) menarik bagian mereka ke saldo yang dapat dibelanjakan melalui
-operasi staking eksplisit <code>ClaimRewards</code>. Ini adalah pipeline
-yang sama dengan pembayaran subsidi blok (Bagian 6.5); proposer tidak
-menerima bagian yang istimewa, yang menjaga insentif tetap selaras
-dengan mencapai finalisasi supermayoritas alih-alih dengan
-mengusulkan.</p></li>
+<li><p><strong>50% dikreditkan langsung ke proposer blok</strong> yang
+memasukkan transaksi tersebut (saldo yang langsung dapat dibelanjakan).
+Ini adalah komponen variabel pendapatan validator di atas subsidi blok
+yang tetap.</p></li>
 </ul>
-<pre><code>Gambar 3 — Aliran pembagian fee
+<p>Block subsidy sendiri mengikuti jalur berbeda: di-mint ke escrow
+protocol-treasury dan diakumulasikan pro-rata ke precommit signer blok,
+yang di-claim via operasi staking eksplisit (Bagian 6.5). Fee dan
+subsidy sengaja dipisah seperti ini — proposing dibayar real-time agar
+validator melihat pendapatan langsung, sementara subsidy di-escrow agar
+ekspansi pasokannya masuk sirkulasi hanya saat di-claim.</p>
+<pre><code>Gambar 3 — Aliran pembagian fee (per transaksi)
 
    tx fee
      │
-     ├──── 50% ───→  BURN_ADDRESS       (dihancurkan selamanya)
+     ├──── 50% ───→  BURN_ADDRESS    (dihancurkan selamanya)
      │
-     └──── 50% ───→  PROTOCOL_TREASURY  (escrow; pro-rata ke pending_rewards
-                                         para precommit signer berdasarkan
-                                         stake; di-claim via ClaimRewards)</code></pre>
+     └──── 50% ───→  proposer blok   (saldo langsung dapat dibelanjakan)</code></pre>
 <h3 id="premine-dan-distribusi-awal">6.4 Premine dan Distribusi
 Awal</h3>
 <p>Premine sebesar 63 juta SRX—20% dari cap pasokan—dialokasikan saat
@@ -847,17 +847,17 @@ genesis di empat peran. Seluruh alamat alokasi bersifat publik dan dapat
 diverifikasi on-chain:</p>
 <table>
 <colgroup>
-<col style="width: 22%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
+<col style="width: 10%" />
+<col style="width: 11%" />
+<col style="width: 41%" />
+<col style="width: 35%" />
 </colgroup>
 <thead>
 <tr class="header">
 <th>Peran</th>
 <th>Jumlah</th>
-<th>Alamat</th>
-<th>Tujuan</th>
+<th>Alamat (pemegang saat ini)</th>
+<th>Tujuan tingkat tinggi</th>
 </tr>
 </thead>
 <tbody>
@@ -865,65 +865,62 @@ diverifikasi on-chain:</p>
 <td>Founder</td>
 <td>21 juta SRX</td>
 <td><code>0x5b5b06688dcdbe532353ac610aaff41af825279d</code></td>
-<td>Treasury, pengembangan awal, kelangsungan operasional, seed
-market-making</td>
+<td>Treasury operasional jangka panjang</td>
 </tr>
 <tr class="even">
 <td>Early Validator</td>
 <td>10,5 juta SRX</td>
 <td><code>0x328d56b8174697ef6c9e40e19b7663797e16fa47</code></td>
-<td>Bootstrap validator awal, seeding reward, biaya infrastruktur</td>
+<td>Pool insentif validator</td>
 </tr>
 <tr class="odd">
 <td>Ecosystem Fund</td>
 <td>21 juta SRX</td>
 <td><code>0xeb70fdefd00fdb768dec06c478f450c351499f14</code></td>
-<td>Hibah, hadiah hackathon, integrasi kemitraan, bootstrap likuiditas
-DEX</td>
+<td>Hibah ekosistem dan budget pertumbuhan</td>
 </tr>
 <tr class="even">
 <td>Reserve</td>
 <td>10,5 juta SRX</td>
 <td><code>0x2578cad17e3e56c2970a5b5eab45952439f5ba97</code></td>
-<td>Cadangan strategis di bawah kontrol multi-signature, kontingensi,
-raise mendatang</td>
+<td>Cadangan strategis</td>
 </tr>
 </tbody>
 </table>
 <p>Sisa 80% pasokan (252 juta SRX) diterbitkan melalui block reward
 selama kira-kira 24 tahun, setelah itu tidak ada SRX baru yang
-diterbitkan.</p>
-<p><strong>Vesting:</strong> Premine tidak memiliki jadwal vesting
+diterbitkan. Kebijakan sub-alokasi terperinci (program hibah, budget
+listing, kampanye airdrop, pengaturan custody, komitmen vesting) berada
+di dokumen tokenomik operasional yang dipublikasikan di <a
+href="https://sentrixchain.com/docs/tokenomics">sentrixchain.com/docs/tokenomics</a>;
+dokumen tersebut berkembang seiring chain matang, sementara empat jumlah
+dan cap di atas tidak berubah.</p>
+<p><strong>Vesting.</strong> Premine tidak memiliki jadwal vesting
 on-chain. Alokasi Founder secara operasional diperlakukan sebagai posisi
-jangka panjang oleh penulis—bukan posisi yang dapat diperdagangkan—namun
-ini adalah komitmen perilaku, bukan paksaan protokol. Baca makalah ini,
-audit alamatnya, putuskan kepercayaan Anda sesuai itu. Migrasi multisig
-N-of-M di masa depan dapat menerapkan vesting yang dipaksakan pada
-sebagian alokasi Founder; sampai itu rilis, alokasi tersebut dapat
-dikontrol secara unilateral.</p>
-<p><strong>Manajemen treasury.</strong> Ecosystem Fund (21 juta SRX)
-adalah anggaran ekspansi utama. Penggunaan yang dimaksudkan, dalam
-urutan prioritas: (1) seed likuiditas untuk pool DEX SRX/stablecoin
-pertama saat protokol bridge live, (2) hadiah hackathon dan hibah
-developer hingga 100K SRX per proyek, (3) subsidi integrasi kemitraan
-dengan counterpart ekonomi-riil, (4) hibah infrastruktur untuk validator
-independen. Pencairan terlihat on-chain; pola pengeluaran dari waktu ke
-waktu adalah mekanisme akuntabilitas publik.</p>
-<h3 id="routing-reward">6.5 Routing Reward</h3>
-<pre><code>Gambar 4 — Routing reward
+jangka panjang oleh penulis, bukan posisi yang dapat diperdagangkan,
+namun ini adalah komitmen perilaku, bukan paksaan protokol. Baca dokumen
+tokenomik operasional untuk skedul komitmen saat ini, audit alamatnya
+on-chain, dan putuskan kepercayaan Anda sesuai itu.</p>
+<h3 id="routing-block-subsidy">6.5 Routing Block Subsidy</h3>
+<pre><code>Gambar 4 — Routing block subsidy
 
-   blok N            PROTOCOL_TREASURY        StakingOp::ClaimRewards
-   ────────  →  ───────────────────────  →   ────────────────────────
-   1 SRX reward       (akun escrow)           Validator dapat: bersih
-   ↓                                          dari komisi.
-   dikreditkan ke                             Delegator dapat: pro-rata
-   PROTOCOL_TREASURY                          ke stake yang didelegasikan.
-   bukan langsung                             Keduanya claim eksplisit
-   ke validator                               via transaksi ditandatangani.</code></pre>
-<p>Block reward tidak membayar validator secara langsung. Mereka
-dikreditkan ke escrow treasury protokol, dari mana validator dan
-delegator mereka mengklaim earning yang terakumulasi melalui operasi
-staking.</p>
+   blok N             PROTOCOL_TREASURY        StakingOp::ClaimRewards
+   ─────────   →  ───────────────────────  →   ─────────────────────────
+   1 SRX subsidy      (akun escrow)            Setiap precommit signer
+   ↓                                           mengakumulasi pending_rewards
+   di-mint ke                                  pro-rata terhadap stake mereka.
+   PROTOCOL_TREASURY                           Validator dan delegator
+   bukan langsung                              claim eksplisit via transaksi
+   ke validator                                yang ditandatangani.</code></pre>
+<p>Block subsidy tidak membayar validator secara langsung. Mereka
+dikreditkan ke escrow protocol-treasury, lalu diakumulasikan pro-rata ke
+saldo pending-rewards setiap validator yang menandatangani precommit
+blok (delegator mewarisi akrual validator mereka, dikurangi komisi).
+Validator dan delegator menarik ke saldo yang dapat dibelanjakan melalui
+operasi staking eksplisit. Desain ini menjaga invarian pasokan — SRX
+baru masuk sirkulasi hanya saat di-claim, tidak pernah saat diproduksi —
+dan memberikan batas akuntansi yang bersih antara penerbitan dan
+distribusi.</p>
 <hr />
 <h2 id="ekonomi-validator">7. Ekonomi Validator</h2>
 <h3 id="stake-yang-dipertaruhkan-dan-slashing">7.1 Stake yang
