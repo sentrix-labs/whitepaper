@@ -4,7 +4,7 @@
 
 **Author:** Satya Kwok &lt;satya@sentrixchain.com&gt;
 **Web:** sentrixchain.com
-**Version:** 1.2.3 (final unless chain hard-fork)
+**Version:** 1.2.4 (final unless chain hard-fork)
 
 ---
 
@@ -505,20 +505,19 @@ Slashed SRX is destroyed (added to BURN_ADDRESS), not redistributed. This preser
 
 ### 7.2 Block Reward and Fee Share
 
-Validators earn block rewards (the fixed subsidy) plus fee shares (50% of every transaction fee in blocks they propose). Their delegators earn proportionally to their delegated stake, less a commission set by the validator.
+A validator's revenue has two components, which flow on different paths:
 
-A validator's expected revenue per epoch is:
+- **Block subsidy share.** For every block whose precommit they sign, the validator accrues a slice of that block's 1-SRX subsidy proportional to their stake. With *N* active validators all signing every block, a validator with stake fraction *f* = `validator_stake / total_active_stake` accrues roughly *f* of every block's subsidy. The accrual sits in escrow (`PROTOCOL_TREASURY`) and is drained by an explicit `ClaimRewards` staking operation.
+- **Fee share.** For each block the validator *proposes*, 50% of that block's transaction fees credits directly to their balance (immediate spendable). Round-robin proposer rotation, weighted by stake, gives them an expected fraction *f* of all proposed blocks per epoch.
+
+Expected revenue per epoch, for a validator with stake fraction *f*:
 
 ```
-expected_revenue = (block_subsidy × blocks_proposed)
-                 + (fee_share × tx_fees_in_those_blocks)
-
-where:
-    blocks_proposed ≈ epoch_length × (validator_stake / total_active_stake)
-    fee_share = 0.5
+revenue ≈  f × epoch_length × block_subsidy        (from signing blocks; escrowed)
+         + 0.5 × f × epoch_fees                    (from proposing blocks; spendable)
 ```
 
-Higher-stake validators propose more blocks (proposer rotation is stake-weighted) and earn proportionally more.
+Delegators inherit their validator's accrual on both components, minus a commission rate the validator publishes. Higher-stake validators earn proportionally more on both axes.
 
 ### 7.3 Liveness Penalty
 
@@ -688,7 +687,7 @@ In the current single-author phase, the author holds an effective veto over what
 
 ### 11.2 The SentrixSafe Multisig
 
-Authority over privileged operations (validator authority key, treasury reserve management, fee-fork toggle) is held by the SentrixSafe multisig, a Gnosis-Safe-derived contract deployed at genesis. Currently configured 1-of-1 with the author as sole signer; intended to expand organically to N-of-M as the chain attracts long-term contributors who can credibly sign off on protocol authority operations.
+Authority over privileged operations (validator authority key, treasury reserve management, fee-fork toggle) is held by the SentrixSafe multisig, a Gnosis-Safe-derived contract deployed onto the chain shortly after Voyager activation as part of the canonical contracts set. Currently configured 1-of-1 with the author as sole signer; intended to expand organically to N-of-M as the chain attracts long-term contributors who can credibly sign off on protocol authority operations.
 
 Expansion happens by adding co-signers through SentrixSafe's standard `addOwner` operation, increasing the signature threshold proportionally. There is no hard timeline; the bar is "credible co-signer with operational continuity and skin-in-the-game," not "calendar quarter."
 

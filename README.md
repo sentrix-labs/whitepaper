@@ -26,6 +26,13 @@ Requires `texlive-latex-recommended`, `texlive-latex-extra`, `lmodern`, and (for
 
 ## Versions
 
+- **v1.2.4** (current, final unless chain hard-fork) — Two corrections:
+  reworked §7.2 validator-revenue formula (subsidy is split pro-rata across
+  precommit signers, not paid to the proposer; only fees go to proposer).
+  Fixed §11.2 SentrixSafe deployment claim — was "deployed at genesis"
+  but actually deployed shortly after Voyager activation as part of the
+  canonical contracts set.
+
 - **v1.2.3** (current, final unless chain hard-fork) — Two corrections.
   First, the §6.4 premine table no longer carries fabricated
   sub-allocation strings ("market-making seed", "DEX liquidity

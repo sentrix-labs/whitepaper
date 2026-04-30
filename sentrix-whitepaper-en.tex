@@ -29,7 +29,7 @@
 
 \title{\textbf{Sentrix}\\[2pt]\large A Layer-One Blockchain for the Real Economy}
 \author{Satya Kwok\\\href{mailto:satya@sentrixchain.com}{satya@sentrixchain.com}\\\href{https://sentrixchain.com}{sentrixchain.com}}
-\date{Version 1.2.3 \quad\textit{(final unless chain hard-fork)}}
+\date{Version 1.2.4 \quad\textit{(final unless chain hard-fork)}}
 
 \begin{document}
 \maketitle
@@ -510,14 +510,19 @@ Slashed SRX is destroyed (added to the burn address), not redistributed. This pr
 
 \subsection{Block Reward and Fee Share}
 
-Validators earn block rewards (the fixed subsidy) plus fee share (50\% of every transaction fee in blocks they propose). Their delegators earn proportionally to delegated stake, minus a commission set by the validator.
+A validator's revenue has two components, which flow on different paths:
 
-Expected validator revenue per epoch:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Block subsidy share.} For every block whose precommit they sign, the validator accrues a slice of that block's 1-SRX subsidy proportional to their stake. With $N$ active validators all signing every block, a validator with stake fraction $f = \frac{\text{validator\_stake}}{\text{total\_active\_stake}}$ accrues roughly $f$ of every block's subsidy. The accrual sits in escrow (PROTOCOL\_TREASURY) and is drained by an explicit \texttt{ClaimRewards} staking operation.
+\item \textbf{Fee share.} For each block the validator \emph{proposes}, 50\% of that block's transaction fees credits directly to their balance (immediate spendable). Round-robin proposer rotation, weighted by stake, gives them an expected fraction $f$ of all proposed blocks per epoch.
+\end{itemize}
+
+Expected revenue per epoch, for a validator with stake fraction $f$:
 \begin{align*}
-\mathrm{revenue} &= (\mathrm{block\_subsidy} \times \mathrm{blocks\_proposed}) + (\mathrm{fee\_share} \times \mathrm{tx\_fees}) \\
-\mathrm{blocks\_proposed} &\approx \mathrm{epoch\_length} \times \frac{\mathrm{validator\_stake}}{\mathrm{total\_active\_stake}} \\
-\mathrm{fee\_share} &= 0.5
+\mathrm{revenue} &\approx \underbrace{f \cdot \mathrm{epoch\_length} \cdot \mathrm{block\_subsidy}}_{\text{from signing blocks (escrowed)}} \;+\; \underbrace{0.5 \cdot f \cdot \mathrm{epoch\_fees}}_{\text{from proposing blocks (spendable)}}
 \end{align*}
+
+Delegators inherit their validator's accrual on both components, minus a commission rate the validator publishes.
 
 \subsection{Liveness Penalty}
 
@@ -633,7 +638,7 @@ Sentrix's protocol upgrades are coordinated through binary releases gated by act
 
 \subsection{The SentrixSafe Multisig}
 
-Authority over privileged operations (validator authority key, treasury reserve management, fee-fork toggle) is held by the SentrixSafe multisig, a Gnosis-Safe-derived contract deployed at genesis. Currently configured 1-of-1 with the author as sole signer; intended to expand organically to N-of-M as the chain attracts long-term contributors who can credibly sign off on protocol-authority operations. There is no hard timeline; the bar is ``credible co-signer with operational continuity and skin-in-the-game,'' not ``calendar quarter.''
+Authority over privileged operations (validator authority key, treasury reserve management, fee-fork toggle) is held by the SentrixSafe multisig, a Gnosis-Safe-derived contract deployed onto the chain shortly after Voyager activation as part of the canonical contracts set. Currently configured 1-of-1 with the author as sole signer; intended to expand organically to N-of-M as the chain attracts long-term contributors who can credibly sign off on protocol-authority operations. There is no hard timeline; the bar is ``credible co-signer with operational continuity and skin-in-the-game,'' not ``calendar quarter.''
 
 \subsection{Future On-Chain Governance}
 

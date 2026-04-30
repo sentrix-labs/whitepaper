@@ -4,7 +4,7 @@
 
 **Penulis:** Satya Kwok &lt;satya@sentrixchain.com&gt;
 **Web:** sentrixchain.com
-**Versi:** 1.2.3 (final kecuali ada hard fork chain)
+**Versi:** 1.2.4 (final kecuali ada hard fork chain)
 
 ---
 
@@ -500,18 +500,19 @@ SRX yang di-slash dihancurkan (ditambahkan ke BURN_ADDRESS), bukan didistribusi 
 
 ### 7.2 Block Reward dan Bagi Hasil Fee
 
-Validator memperoleh block reward (subsidi tetap) plus bagi hasil fee (50% dari setiap fee transaksi di blok yang mereka usulkan). Delegator mereka memperoleh secara proporsional dengan stake yang didelegasikan, dikurangi komisi yang ditetapkan oleh validator.
+Pendapatan validator memiliki dua komponen yang mengalir di jalur berbeda:
 
-Pendapatan harapan validator per epoch:
+- **Bagian block subsidy.** Untuk setiap blok yang precommit-nya ditandatangani validator, mereka mengakumulasi sebagian subsidy 1-SRX blok itu proporsional terhadap stake mereka. Dengan *N* validator aktif yang menandatangani setiap blok, validator dengan fraksi stake *f* = `validator_stake / total_active_stake` mengakumulasi sekitar *f* dari setiap subsidy blok. Akrual berada di escrow (`PROTOCOL_TREASURY`) dan ditarik melalui operasi staking eksplisit `ClaimRewards`.
+- **Bagi hasil fee.** Untuk setiap blok yang validator *usulkan*, 50% dari fee transaksi blok itu dikreditkan langsung ke saldo mereka (langsung dapat dibelanjakan). Rotasi proposer round-robin yang dibobotkan stake memberikan mereka fraksi *f* yang diharapkan dari semua blok yang diusulkan per epoch.
+
+Pendapatan yang diharapkan per epoch, untuk validator dengan fraksi stake *f*:
 
 ```
-expected_revenue = (block_subsidy × blocks_proposed)
-                 + (fee_share × tx_fees_in_those_blocks)
-
-di mana:
-    blocks_proposed ≈ epoch_length × (validator_stake / total_active_stake)
-    fee_share = 0,5
+revenue ≈  f × epoch_length × block_subsidy        (dari menandatangani blok; di-escrow)
+         + 0,5 × f × epoch_fees                    (dari mengusulkan blok; spendable)
 ```
+
+Delegator mewarisi akrual validator mereka pada kedua komponen, dikurangi tarif komisi yang dipublikasikan validator. Validator dengan stake lebih tinggi mendapatkan proporsional lebih banyak pada kedua sumbu.
 
 ### 7.3 Penalti Liveness
 
@@ -661,7 +662,7 @@ Pada fase penulis-tunggal saat ini, penulis memegang veto efektif atas rilis apa
 
 ### 11.2 SentrixSafe Multisig
 
-Otoritas atas operasi privileged (kunci otoritas validator, manajemen cadangan treasury, toggle fee-fork) dipegang oleh SentrixSafe multisig, sebuah kontrak turunan Gnosis-Safe yang di-deploy saat genesis. Saat ini dikonfigurasi 1-of-1 dengan penulis sebagai sole signer; dimaksudkan untuk berkembang secara organik ke N-of-M seiring chain menarik kontributor jangka panjang yang dapat secara kredibel menandatangani operasi otoritas protokol.
+Otoritas atas operasi privileged (kunci otoritas validator, manajemen cadangan treasury, toggle fee-fork) dipegang oleh SentrixSafe multisig, sebuah kontrak turunan Gnosis-Safe yang di-deploy ke chain segera setelah aktivasi Voyager sebagai bagian dari canonical contracts set. Saat ini dikonfigurasi 1-of-1 dengan penulis sebagai sole signer; dimaksudkan untuk berkembang secara organik ke N-of-M seiring chain menarik kontributor jangka panjang yang dapat secara kredibel menandatangani operasi otoritas protokol.
 
 Ekspansi terjadi dengan menambahkan co-signer melalui operasi `addOwner` standar SentrixSafe, meningkatkan threshold tanda tangan secara proporsional. Tidak ada timeline keras; standar adalah "co-signer kredibel dengan kelangsungan operasional dan skin-in-the-game," bukan "kuartal kalender."
 
