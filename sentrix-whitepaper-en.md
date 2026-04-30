@@ -2,14 +2,25 @@
 
 ### A Layer-One Blockchain for the Real Economy
 
-**Author:** Satya Kwok
-**Version:** 1.2 (final unless chain hard-fork)
+**Author:** Satya Kwok &lt;satya@sentrixchain.com&gt;
+**Web:** sentrixchain.com
+**Version:** 1.2.1 (final unless chain hard-fork)
 
 ---
 
 ## Abstract
 
 We propose Sentrix, a Layer-One blockchain optimized for real-world economic settlement. Sentrix uses a delegated-proof-of-stake validator selection paired with a three-phase Byzantine Fault Tolerant agreement protocol to produce one-second-final blocks. Native protocol operations—token issuance, staking, validator coordination—execute directly against canonical state, while a second execution rail runs the Ethereum Virtual Machine for general-purpose programmability. Monetary policy is fixed: a maximum supply of 315 million SRX, a one-SRX block reward halving every approximately 126 million blocks (four years at one-second blocks), and a fee mechanism that destroys 50% of every transaction fee forever. The chain is designed for durable financial infrastructure for real-world economic activity, beginning in Indonesia and scaling outward. This paper specifies the design rationale, architecture, transaction lifecycle, consensus safety properties, monetary mechanics, and threat model.
+
+---
+
+## Focus Statement
+
+Sentrix is financial infrastructure for the real economy. Every design choice in this paper—sub-second finality, native payment primitives, EVM compatibility, capped halving deflationary supply, open-permissionless validator set—serves one goal: making payment, savings, asset transfer, and contract settlement work for actual businesses and households, beginning with Indonesia.
+
+Sentrix is not a speculation venue. It is not a DeFi-first chain. It is not a rollup framework. It is not a high-frequency-trading substrate. It is a settlement rail for the kind of economic activity that already exists in the physical world—remittances, retail payments, supplier invoicing, cooperative savings, real-world-asset tokenization, cross-border commerce—and that has been poorly served by both the legacy banking system and the speculation-oriented public chains that came before us.
+
+The chain's economic constants (315M cap, four-year halving, 50% fee burn, genesis allocation) are non-governable: no proposal, no fork, no upgrade can change them. They are the foundational economic contract between the protocol and its users, and they are stable for as long as the chain operates.
 
 ---
 

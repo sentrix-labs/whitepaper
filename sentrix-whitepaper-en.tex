@@ -1,0 +1,708 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{verbatim}
+\usepackage{fancyvrb}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  urlcolor=blue!50!black,
+  linkcolor=blue!50!black,
+  citecolor=blue!50!black,
+  pdftitle={Sentrix: A Layer-One Blockchain for the Real Economy},
+  pdfauthor={Satya Kwok}
+}
+\usepackage{titlesec}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+\titlespacing{\subsection}{0pt}{10pt}{4pt}
+
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+\title{\textbf{Sentrix}\\[2pt]\large A Layer-One Blockchain for the Real Economy}
+\author{Satya Kwok\\\href{mailto:satya@sentrixchain.com}{satya@sentrixchain.com}\\\href{https://sentrixchain.com}{sentrixchain.com}}
+\date{Version 1.2.1 \quad\textit{(final unless chain hard-fork)}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We propose Sentrix, a Layer-One blockchain optimized for real-world economic settlement. Sentrix uses a delegated-proof-of-stake validator selection paired with a three-phase Byzantine Fault Tolerant agreement protocol to produce one-second-final blocks. Native protocol operations---token issuance, staking, validator coordination---execute directly against canonical state, while a second execution rail runs the Ethereum Virtual Machine for general-purpose programmability. Monetary policy is fixed: a maximum supply of 315 million SRX, a one-SRX block reward halving every approximately 126 million blocks (four years at one-second blocks), and a fee mechanism that destroys 50\% of every transaction fee forever. The chain is designed for durable financial infrastructure for real-world economic activity, beginning in Indonesia and scaling outward. This paper specifies the design rationale, architecture, transaction lifecycle, consensus safety properties, monetary mechanics, and threat model.
+\end{abstract}
+
+\section*{Focus Statement}
+
+Sentrix is financial infrastructure for the real economy. Every design choice in this paper---sub-second finality, native payment primitives, EVM compatibility, capped halving deflationary supply, open-permissionless validator set---serves one goal: making payment, savings, asset transfer, and contract settlement work for actual businesses and households, beginning with Indonesia.
+
+Sentrix is not a speculation venue. It is not a DeFi-first chain. It is not a rollup framework. It is not a high-frequency-trading substrate. It is a settlement rail for the kind of economic activity that already exists in the physical world---remittances, retail payments, supplier invoicing, cooperative savings, real-world-asset tokenization, cross-border commerce---and that has been poorly served by both the legacy banking system and the speculation-oriented public chains that came before us.
+
+The chain's economic constants (315M cap, four-year halving, 50\% fee burn, genesis allocation) are non-governable: no proposal, no fork, no upgrade can change them. They are the foundational economic contract between the protocol and its users, and they are stable for as long as the chain operates.
+
+\section{Introduction}
+
+Most public blockchains were designed to do something other than serve real economic activity. Bitcoin was designed to be a peer-to-peer digital cash system~\cite{nakamoto2008}, but in practice operates primarily as a settlement layer for value storage. Ethereum was designed as a world computer~\cite{buterin2014}, but its on-chain economy is dominated by financial speculation, on-chain trading, and synthetic assets. Layer-Two scaling solutions inherit these orientations and amplify them.
+
+The disconnect between blockchain infrastructure and the actual economic activity of the majority of the world's population is striking. The bulk of human commerce remains denominated in local currencies, settled through banking rails that have not materially improved in decades, and effectively excluded from public-blockchain participation. The friction is not philosophical---real businesses, real cooperatives, real cross-border merchants want fast and final settlement---but architectural. The infrastructure they would need is not the infrastructure that has been built.
+
+Sentrix is a response to this architectural gap. It is a blockchain whose every design choice prioritizes real economic settlement over trading speculation. Where general-purpose chains favor maximum flexibility at the cost of efficiency, Sentrix promotes the most common economic primitives to native protocol operations, eliminating an entire class of overhead. Where most chains tolerate ten- or thirty-second block times, Sentrix targets one-second finality, sufficient for retail-grade interactions. Where many chains follow inflationary token models, Sentrix is hard-capped, halving, and deflationary---every fee is partially destroyed forever, so circulating supply contracts as activity grows.
+
+Sentrix is built first for Indonesia, where the population, unbanked share, and remittance volume present a uniquely large unmet demand. From there it is intended to scale outward.
+
+\section{Vision, Mission, and Rationale}
+
+\subsection{Vision}
+
+A future in which real-world economic activity---cross-border payments, asset-backed lending, retail commerce, cooperative savings, supply-chain settlement, identity verification---runs on rails that are transparent, low-cost, programmable, not owned by a single corporation, accessible from any internet connection, and as fast as a credit-card swipe.
+
+We do not believe this vision can be realized through retrofits of legacy banking systems. We do not believe it can be realized on blockchains designed for trading speculation. It can be realized through purpose-built infrastructure that treats real-economy settlement as a first-class concern rather than an afterthought.
+
+\subsection{Mission}
+
+Build the most reliable, lowest-cost, most accessible settlement layer for real-world economic activity, starting from the geographies and use cases that have been failed by legacy infrastructure.
+
+Concretely, this means:
+
+\begin{itemize}[leftmargin=*]
+\item One-second final settlement for any transfer, swap, or contract call.
+\item Transaction fees measured in fractions of a cent, regardless of transfer size.
+\item Native protocol support for token issuance, staking, and asset management without requiring smart-contract deployment.
+\item Compatibility with the global Ethereum developer toolchain so existing applications can port without modification.
+\item Open codebase, transparent operations, deterministic monetary policy.
+\item Market-entry orientation toward Indonesia and Southeast Asia, where unmet demand is largest.
+\end{itemize}
+
+\subsection{Why Sentrix Exists}
+
+The infrastructure problem we address has four dimensions:
+
+\textbf{Latency.} Existing payment rails settle in days (correspondent banking), hours (card networks), or tens of seconds (blockchains optimized for security or trading). Real commerce demands sub-second confirmations for point-of-sale, retail, and routine business operations.
+
+\textbf{Cost.} Cross-border remittance fees of 5--10\% remain common. Card-network interchange fees of 1--3\% extract value at every retail transaction. Smart-contract gas costs on general-purpose chains routinely exceed the value being transferred for small payments. Sentrix's native operations target costs measured in fractions of a US cent regardless of the underlying asset's value.
+
+\textbf{Programmability without overhead.} Blockchains have demonstrated that programmable transactions enable powerful new economic constructions---lending, escrow, automated market making, identity verification. But routine operations like transferring tokens, claiming staking rewards, or registering validators should not require deploying audited smart-contract code. They should be part of the protocol.
+
+\textbf{Inclusion.} Banking infrastructure correlates with national wealth. Public-blockchain infrastructure could in principle break this correlation, but in practice has reproduced it: most on-chain activity originates from a small set of high-income jurisdictions. Sentrix is positioned to invert this default by building first for the geographies most underserved by legacy systems.
+
+\subsection{Why Now}
+
+Three preconditions have converged that make this work feasible.
+
+First, the EVM has matured into a standard. Tooling, wallets, smart-contract libraries, security-audit conventions, and developer mental models have converged. New chains adopting EVM compatibility inherit the entire ecosystem at zero cost.
+
+Second, Byzantine Fault Tolerant consensus has been productionized. Tendermint-style BFT has run reliable mainnets for years. The hard part of consensus is now well-trodden, and new chains can build on robust open-source implementations.
+
+Third, Rust has matured into a viable systems language for blockchain implementation. Memory-safety guarantees, mature async runtime, performant cryptographic libraries, and a culture of zero-copy efficiency make solo or small-team chain development feasible in ways it was not a decade ago.
+
+A chain combining all three---EVM compatibility, BFT consensus, and a Rust implementation---and applying them to real-economy use cases is technically feasible today in a way it was not five years ago.
+
+\subsection{Why Indonesia First}
+
+Indonesia is the world's fourth-most-populous country and the largest economy in Southeast Asia. It has:
+
+\begin{itemize}[leftmargin=*]
+\item A young, mobile-first population with high smartphone penetration.
+\item A large unbanked or underbanked population (\textasciitilde 40\% by some estimates).
+\item A strong informal economic structure (cooperative banking, community lending, microfinance) that maps naturally to blockchain settlement.
+\item Remittance flows growing on the scale of tens of billions of dollars per year.
+\item A regulatory environment that, while still maturing, has shown willingness to engage with crypto and blockchain.
+\item A meaningful local crypto-aware developer community.
+\end{itemize}
+
+The combination of large unmet demand, technological readiness, and cultural fit makes Indonesia a natural starting point. Once a settlement layer is durable and useful in this market, expansion to comparable markets in Southeast Asia and beyond becomes straightforward.
+
+This is not an ``emerging-markets'' framing. It is a specific-market framing. Sentrix is built to serve a specific set of users with specific needs, and is designed to scale outward from there.
+
+\section{Design Principles}
+
+Six principles shape every architectural decision in Sentrix:
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Settlement over speculation.} Blockchains optimized for trading create incentive structures that produce trading. Blockchains optimized for settlement produce real economic commerce. We choose the latter at every fork.
+\item \textbf{Native primitives over contract overhead.} Operations that nearly every user will perform---holding tokens, staking, claiming rewards, moving assets---should not require deploying or interacting with smart contracts. They are part of the protocol.
+\item \textbf{EVM compatibility for the general case.} Where programmability is needed, the EVM serves it well---a developing standard with broad tooling support. Sentrix runs the EVM faithfully, alongside its native operations.
+\item \textbf{Deflationary monetary policy.} Inflationary tokens reward early holders at the cost of later holders. Sentrix is supply-capped, halves on the same cadence as Bitcoin, and burns half of every fee. As activity grows, supply contracts.
+\item \textbf{Crypto-economic security through staking.} Decentralization is a property of who can stake, not of who currently is. Sentrix's validator set is open, permissionless, and economically secured by stake-at-risk.
+\item \textbf{Real over nominal.} Real-world assets, real businesses, real economic activity. Sentrix avoids on-chain abstractions whose value derives only from other on-chain abstractions. The chain serves the world; the world does not serve the chain.
+\end{enumerate}
+
+\section{Architecture}
+
+Sentrix is structured as four integrated subsystems operating on a single canonical state.
+
+\begin{figure}[h]
+\centering
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+                        SENTRIX NODE
+
+   +---------------------+    +---------------------+
+   |   Native Rail       |    |   EVM Rail (revm)   |
+   |   * SRC-20 ops      |    |   * Smart contracts |
+   |   * Staking ops     |    |   * Standard tools  |
+   |   * Validator ops   |    |   * EIP-1559 fees   |
+   +----------+----------+    +----------+----------+
+              |                          |
+   +----------+--------------------------+----------+
+   |   Block Executor (apply-pass dispatcher)       |
+   +----------+----------------+--------------------+
+              |                |
+   +----------+----------+   +-+-------------------+
+   |  State Trie         |   | MDBX KV Storage     |
+   |  binary SMT         |   | chain.db            |
+   +---------------------+   +---------------------+
+
+   +---------------------+    +---------------------+
+   |   BFT Engine        |    |   libp2p Network    |
+   |   3-phase rounds    |    |   gossip + sync     |
+   +---------------------+    +---------------------+
+\end{Verbatim}
+\caption{System architecture: two execution rails, one canonical state.}
+\end{figure}
+
+\subsection{Consensus Layer}
+
+Sentrix uses a delegated-proof-of-stake validator-selection model paired with a three-phase Byzantine Fault Tolerant agreement protocol~\cite{tendermint}.
+
+\subsubsection*{Validator Selection}
+
+The validator set is selected by stake-weighted delegation. Any token holder may delegate to any candidate validator; the resulting weighted ranking determines the active set for each epoch. Active-set membership is recomputed at fixed epoch boundaries, allowing new validators to enter and underperforming validators to exit without governance intervention.
+
+A minimum self-stake for validators is enforced at the protocol level. Delegated stake is bonded with an unbonding period: stake withdrawal initiates a fixed-duration timeout during which the stake remains slashable but is not eligible for new rewards. This prevents validators from offloading risk immediately before misbehaving.
+
+\subsubsection*{Three-Phase Rounds}
+
+Within an epoch, the active set runs Tendermint-style three-phase rounds to finalize each block. A round consists of three message types and three corresponding phase transitions:
+
+\begin{figure}[h]
+\centering
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+   PROPOSE phase    PREVOTE phase    PRECOMMIT phase    COMMIT
+        |                 |                 |             |
+        v                 v                 v             v
+   t=0              t~300ms           t~600ms          t~1s
+   - proposer P     - each            - each           - block
+     for height H     validator         validator        finalized
+     proposes B       prevotes B        precommits B
+                      if valid          if 2/3+
+                                        prevote B seen
+\end{Verbatim}
+\caption{BFT round timing: one second from proposal to finalization.}
+\end{figure}
+
+A block is final when a supermajority ($\geq 2/3$ of stake-weighted active set) precommits the same block in the same round. The justification---the set of precommit signatures---is included in the next block, providing public proof that the parent was finalized.
+
+\subsubsection*{Locking and Skip Rounds}
+
+After a validator prevotes a block in a round, it locks on that block. In subsequent rounds at the same height, it will only prevote a different block if it observes a ``polka'' ($\geq 2/3$ prevotes for a new block) at a higher round. This locking property is what guarantees safety: two conflicting blocks cannot both gather supermajority precommits.
+
+If a round fails to finalize within its timeout (proposer offline, network partition, validator absence), the protocol advances to the next round. Proposers rotate round-robin through the active set. After a configurable number of consecutive failed rounds, round timeouts double, providing weak-synchrony recovery.
+
+\subsubsection*{Safety and Liveness}
+
+Under the standard BFT assumption that fewer than one-third of stake-weighted active validators are Byzantine, two safety theorems hold:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Agreement.} No two honest validators finalize different blocks at the same height.
+\item \textbf{Validity.} A finalized block is well-formed and applies cleanly.
+\end{itemize}
+
+Liveness holds under a weak-synchrony assumption: messages between honest validators eventually deliver, possibly with bounded delay. Under this assumption, the protocol guarantees that progress eventually occurs.
+
+If the assumption is violated ($\geq 1/3$ Byzantine power), safety is no longer guaranteed and the chain may fork. Recovery in this case requires a social-coordination mechanism---identifying the canonical chain through external trust signals---as in any BFT system.
+
+\subsection{Execution Layer}
+
+Two execution rails operate on the same canonical state.
+
+\textbf{Ethereum Virtual Machine.} Sentrix runs the EVM via a high-performance Rust implementation~\cite{revm}. Standard Ethereum contracts (ERC-20, ERC-721, Uniswap-style pools, lending protocols) deploy without modification. Standard tooling---Foundry, Hardhat, MetaMask, ethers, viem---works directly. Gas accounting follows the EIP-1559 model: a per-block base fee that adjusts with demand, plus a sender-set tip paying the proposer for inclusion.
+
+\textbf{Native protocol operations.} Token issuance (\texttt{SRC-20}), staking (delegate, undelegate, claim rewards), and validator coordination are not smart contracts but transactions interpreted directly by the protocol. They consume less gas than equivalent contract-based operations because they bypass the EVM entirely. They cannot be exploited via unaudited code because their behavior is specified at the protocol level.
+
+The two rails interoperate. A user holding native SRC-20 tokens can interact with EVM contracts that read those balances via a canonical balance-query precompile. EVM contracts can authorize native operations through a system-call gateway. The chain's canonical state is a single union of EVM state and native ledger.
+
+\subsection{State Layer}
+
+Sentrix maintains a binary sparse Merkle tree as the canonical state representation~\cite{merkle}. The state root is committed into every block after a specified activation height, providing a cryptographic guarantee that every node applying the same blocks reaches the same state. Differing state roots produce differing block hashes, and BFT ensures the chain converges on a single canonical history.
+
+State is persisted in MDBX~\cite{mdbx}, an embedded key-value store optimized for high-throughput random reads. Full state is local to every full node; light clients can verify against the trie root with logarithmic Merkle proofs.
+
+\subsubsection*{State Transition Function}
+
+A Sentrix block applies a sequence of transactions to the prior state to produce a new state. Formally, the state transition function $\mathrm{APPLY}(S, B)$ takes state $S$ and block $B = (\mathrm{header}, \mathrm{txs})$ and produces a new state $S'$ or $\mathrm{INVALID}$:
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+APPLY(S, B):
+  1. Verify B's header (parent hash, timestamp, proposer signature).
+  2. For each transaction TX in B.txs, in order:
+       a. Verify TX's signature against TX.from.
+       b. Verify TX.nonce == S[TX.from].nonce.
+       c. Compute fee = TX.gas_used x TX.gas_price (EVM rail) or
+                        MIN_TX_FEE (native rail).
+       d. If S[TX.from].balance < fee + TX.value: skip (insufficient).
+       e. Deduct fee from TX.from.
+       f. Burn 50% of fee to BURN_ADDRESS; pay 50% to block proposer.
+       g. Apply TX:
+          - EVM rail: invoke revm with TX as a call to TX.to.
+          - Native rail: dispatch op_type to native handler.
+       h. If apply succeeds: update accounts, increment nonce, emit events.
+          If apply fails: revert account state, charge fixed fee.
+  3. Compute new state root from the updated trie.
+  4. Verify new state root matches B.header.state_root.
+  5. Return S' if all checks pass; otherwise INVALID.
+\end{Verbatim}
+
+This function is deterministic: any node executing the same $S$ and $B$ produces a bit-identical $S'$. This determinism is what allows independent nodes to verify each other's claims about chain state.
+
+\subsubsection*{Light Clients}
+
+Light clients do not store full state. They track block headers and verify specific facts by requesting Merkle proofs from full nodes. Given a block header containing the canonical state root, a light client can verify any account balance, contract storage slot, or transaction inclusion using a proof logarithmic in the size of state. This makes mobile wallets, dApp browsers, and resource-constrained integrations practical without compromising security.
+
+\subsection{Network Model}
+
+Sentrix nodes communicate via a libp2p mesh~\cite{libp2p}. The protocol uses three message classes:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Block gossip.} Newly finalized blocks propagate through gossipsub on topic \texttt{sentrix/blocks/1}.
+\item \textbf{Transaction gossip.} User-submitted transactions propagate on topic \texttt{sentrix/txs/1} until included in a block.
+\item \textbf{BFT messages.} Proposals, prevotes, and precommits are direct request-response between validators on topic \texttt{sentrix/bft/1}. Rebroadcast amplifies messages that may have been dropped.
+\end{itemize}
+
+Peer discovery uses the Kademlia DHT~\cite{kademlia} with seed-peer addresses for bootstrap. Each node also publishes a ``validator advertisement'' record containing its current libp2p multiaddr, allowing other validators to maintain direct connections without external coordination.
+
+A node joining the network bootstraps as follows:
+
+\begin{enumerate}[leftmargin=*]
+\item Connect to one or more seed peers (configured at startup).
+\item Run a Kademlia DHT walk to populate the peer routing table.
+\item Request chain head from peers; identify the longest stake-weighted chain.
+\item Sync block-by-block from peers until the current head is reached.
+\item Subscribe to gossip topics; begin BFT participation if a validator.
+\end{enumerate}
+
+Network failure modes under partition are well-defined: minority partitions halt (cannot reach supermajority); majority partitions continue with reduced active set. After partition heals, the minority detects the longer canonical chain and rejoins.
+
+\subsection{Transaction Format}
+
+Sentrix transactions have the following structure:
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+Transaction {
+    chain_id:  uint16,        // 7119 mainnet, 7120 testnet
+    nonce:     uint64,        // sender account sequence
+    op_type:   uint8,         // 0=native xfer, 1=SRC-20, 2=staking, 3=EVM
+    from:      address20,     // 20-byte hex with 0x prefix
+    to:        address20,
+    value:     uint64,        // sentri (native) or wei (EVM)
+    gas_limit: uint64,        // EVM rail only
+    gas_price: uint64,        // wei per gas; EVM rail only
+    data:      bytes,         // EVM call data, or native op payload
+    signature: secp256k1,     // 65 bytes (r, s, v)
+}
+\end{Verbatim}
+
+The \texttt{op\_type} discriminator identifies whether the transaction targets the native rail or the EVM rail. The signature is verified against the canonical EIP-155 signing payload, providing cross-chain replay protection. Maximum transaction size is configured at the protocol level; oversized transactions are rejected by the mempool.
+
+\section{Native Operations}
+
+A central design choice in Sentrix is the promotion of common economic primitives from smart contracts to protocol operations.
+
+\subsection{The Native vs.\ Contract Question}
+
+The standard pattern on EVM chains is to implement everything---including the most common operations like token transfer and staking---as smart contracts. The abstraction is uniform: all operations consume gas, all are subject to contract-security audit, all are programmable. This is conceptually clean but exacts three costs.
+
+First, \textbf{execution overhead.} A simple token transfer in EVM space requires loading contract bytecode, dispatching to a function selector, performing storage reads/writes through the contract namespace, and emitting events. The minimum cost is \textasciitilde 21{,}000 gas plus contract execution. The actual computation---decrement sender balance, increment recipient balance---is two storage operations.
+
+Second, \textbf{security overhead.} Every contract-implemented primitive must be independently audited. Token contracts have produced billions of dollars in losses through bugs in long-deployed code. Native operations are part of the chain's consensus, audited once, deterministic forever.
+
+Third, \textbf{upgrade friction.} Contract-implemented primitives are difficult to upgrade without coordinated migration. Native primitives evolve via hard fork, where the entire network upgrades atomically.
+
+\subsection{Native Operation Set}
+
+Sentrix's native operations include:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{\texttt{SRC-20} token operations.} Issue fungible tokens, transfer them, approve allowances. Implemented as transaction variants applied directly to the native ledger. Token state lives in the canonical state trie alongside account balances.
+\item \textbf{Staking operations.} Delegate stake to a validator, undelegate (with unbonding period), claim accrued rewards, register as a validator candidate. Applied directly to the stake registry.
+\item \textbf{Native transfers.} The simplest case: move SRX between accounts. Costs the protocol minimum fee (\texttt{MIN\_TX\_FEE} = 10{,}000 sentri = 0.0001 SRX). 50\% burned, 50\% to proposer.
+\item \textbf{Validator coordination.} Activation, deactivation, and rotation of validators via stake-weighted selection. No governance contract; the protocol enforces rotation each epoch.
+\end{itemize}
+
+These operations remain fully composable: EVM contracts can invoke them via the system gateway, and any wallet supporting Sentrix can execute them via a single signed transaction.
+
+\subsection{Lifecycle of a Transaction}
+
+To make the architecture concrete, consider a SRC-20 transfer of 100 tokens from Alice to Bob.
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+Step 1 - Compose transaction
+  Alice's wallet builds:
+    op_type    = 1  (SRC-20)
+    from       = 0xALICE...
+    to         = 0xTOKEN_CONTRACT
+    value      = 0
+    data       = SRC20_TRANSFER || 0xBOB... || 100
+    nonce      = Alice's current nonce
+    sig        = sign(payload, alice_sk)
+    fee        = MIN_TX_FEE = 10,000 sentri
+
+Step 2 - Submit
+  Wallet sends to any RPC endpoint.
+  RPC validates basic format, places in mempool.
+  Mempool gossips tx to peers via libp2p.
+
+Step 3 - Block inclusion
+  Validator V (proposer for next round) drains mempool.
+  V constructs block N+1 containing Alice's tx + others.
+  V proposes block N+1 to the active set.
+
+Step 4 - BFT finalization
+  Active validators receive the proposal, verify it.
+  Each validator prevotes if proposal is valid.
+  Once 2/3+ prevotes observed, validators precommit.
+  Once 2/3+ precommits observed, block N+1 is finalized.
+
+Step 5 - State apply
+  Each node applies block N+1:
+    a. Deduct 10,000 sentri from Alice's account.
+    b. Burn 5,000 sentri to BURN_ADDRESS (50% of fee).
+    c. Credit 5,000 sentri to validator V's pending rewards.
+    d. Decrement Alice's SRC-20 token balance by 100.
+    e. Increment Bob's SRC-20 token balance by 100.
+    f. Increment Alice's nonce.
+    g. Emit Transfer event.
+    h. Update state trie root; new root committed in block hash.
+
+Step 6 - Confirmation
+  Alice's wallet polls RPC; sees tx in finalized block.
+  Bob's wallet (subscribed via WebSocket) receives notification.
+  Total time from Step 2 to Step 6: ~1-2 seconds.
+\end{Verbatim}
+
+The cycle is identical in principle for native transfers, EVM contract calls, and staking operations---the difference is which apply path is taken in step 5.
+
+\section{Tokenomics}
+
+Sentrix's native asset is SRX. Its monetary policy is fixed.
+
+\subsection{Supply}
+
+The maximum supply is 315 million SRX. There is no governance mechanism to change this. After the maximum is reached through block rewards, no further SRX is created.
+
+\subsection{Block Reward and Halving}
+
+The base block reward is one SRX. The reward halves every approximately 126 million blocks ($\sim$four years at one-second block time), modeled on Bitcoin's halving cadence.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{cccr}
+\toprule
+Era & Years & Block reward & Total issued \\
+\midrule
+1 & 0--4   & 1.0000 SRX & 126.00M SRX \\
+2 & 4--8   & 0.5000 SRX & 189.00M SRX \\
+3 & 8--12  & 0.2500 SRX & 220.50M SRX \\
+4 & 12--16 & 0.1250 SRX & 236.25M SRX \\
+5 & 16--20 & 0.0625 SRX & 244.13M SRX \\
+\multicolumn{4}{c}{$\cdots$ (asymptotic)} \\
+\bottomrule
+\end{tabular}
+\caption{Halving schedule. Combined with the 63M premine, maximum supply approaches 315M SRX over a $\sim$24-year horizon.}
+\end{table}
+
+\subsection{Fee Mechanism}
+
+Every transaction pays a fee. The fee model differs by execution rail.
+
+\textbf{Native rail.} A flat \texttt{MIN\_TX\_FEE} of 10{,}000 sentri (0.0001 SRX) per transaction, regardless of operation. Native operations have fixed cost at the protocol level.
+
+\textbf{EVM rail.} Standard EIP-1559 mechanics~\cite{eip1559}: a per-block \texttt{baseFeePerGas} adjusting with congestion, plus a sender-set tip. \texttt{gasUsed} $\times$ (\texttt{baseFee} $+$ \texttt{tip}) is charged.
+
+From every fee paid, on either rail:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{50\% is destroyed forever} by sending it to a verifiable burn address from which no transaction can be produced. The total burned is publicly observable on chain.
+\item \textbf{50\% is paid to the block proposer} at which the transaction was included. This forms the variable component of validator reward on top of the fixed block subsidy.
+\end{itemize}
+
+\subsection{Premine and Initial Distribution}
+
+A premine of 63 million SRX---20\% of the supply cap---was allocated at genesis across four roles. All allocation addresses are public and verifiable on chain:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{lrlX}
+\toprule
+Role & Amount & Address (current) & Purpose \\
+\midrule
+Founder & 21M SRX & \texttt{0x5b5b...279d} & Treasury, initial development, operational continuity, market-making seed \\
+Early Validator & 10.5M SRX & \texttt{0x328d...fa47} & Initial validator bootstrap, reward seeding, infrastructure costs \\
+Ecosystem Fund & 21M SRX & \texttt{0xeb70...9f14} & Grants, hackathon prizes, partnership integrations, DEX liquidity bootstrap \\
+Reserve & 10.5M SRX & \texttt{0x2578...ba97} & Strategic reserve under multi-signature control, contingency \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The remaining 80\% of supply (252M SRX) issues through block rewards over approximately 24 years.
+
+\textbf{Vesting.} The premine has no on-chain vesting schedule. The Founder allocation is operationally treated as a long-term holding by the author---not a tradable position---but this is a behavioral commitment, not a protocol enforcement. Future N-of-M multisig migration may impose enforced vesting on a portion of the Founder allocation; until that ships, the allocation is unilaterally controllable.
+
+\textbf{Treasury management.} The Ecosystem Fund (21M SRX) is the primary expansion budget. Intended uses, in priority order: (1) seed liquidity for the first SRX/stablecoin DEX pool, (2) hackathon prizes and developer grants up to 100K SRX per project, (3) partnership integration subsidies with real-economy counterparties, (4) infrastructure grants for independent validators. Disbursements are visible on chain; the spending pattern over time is the public accountability mechanism.
+
+\subsection{Reward Routing}
+
+Block rewards do not pay validators directly. They are credited to a protocol-treasury escrow, from which validators and their delegators claim accrued earnings through staking operations. This design preserves the supply invariant---new SRX enters circulation only when claimed, never when produced---and provides a clean accounting boundary between issuance and distribution.
+
+\section{Validator Economics}
+
+\subsection{Stake at Risk and Slashing}
+
+Every validator must bond a minimum self-stake to the protocol. Self-stake is at risk: provable misbehavior produces slashing.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{5cm}cl}
+\toprule
+Trigger & Evidence & Stake slashed & Jail duration \\
+\midrule
+Double-sign & Two signatures on conflicting blocks at the same height & 20\% (parametric) & Permanent (tombstone) \\
+Downtime    & Missed > threshold blocks in window                 & 0.1\% (parametric) & Configurable \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Slashed SRX is destroyed (added to the burn address), not redistributed. This preserves the supply invariant and avoids creating perverse incentives among non-slashed validators to push for slashing competitors.
+
+\subsection{Block Reward and Fee Share}
+
+Validators earn block rewards (the fixed subsidy) plus fee share (50\% of every transaction fee in blocks they propose). Their delegators earn proportionally to delegated stake, minus a commission set by the validator.
+
+Expected validator revenue per epoch:
+\begin{align*}
+\mathrm{revenue} &= (\mathrm{block\_subsidy} \times \mathrm{blocks\_proposed}) + (\mathrm{fee\_share} \times \mathrm{tx\_fees}) \\
+\mathrm{blocks\_proposed} &\approx \mathrm{epoch\_length} \times \frac{\mathrm{validator\_stake}}{\mathrm{total\_active\_stake}} \\
+\mathrm{fee\_share} &= 0.5
+\end{align*}
+
+\subsection{Liveness Penalty}
+
+Validators that miss blocks accumulate downtime against a moving window (\texttt{LIVENESS\_WINDOW}). Sustained downtime produces jailing, removing the validator from the active set and slashing a small fraction of stake.
+
+\subsection{Genesis and Bootstrap}
+
+Sentrix's genesis state is constructed from a configuration file (\texttt{genesis.toml}) declaring chain ID (7119 mainnet, 7120 testnet), initial premine balances, the initial validator set with public keys and self-stake commitments, and protocol parameters effective from block 1. Any node can verify the genesis state by re-applying the genesis configuration; the resulting state root must match the hardcoded genesis hash.
+
+\subsection{Becoming a Validator}
+
+The validator set is open and permissionless. Any operator who can run reliable infrastructure and bond minimum self-stake may register.
+
+Concrete requirements:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Hardware:} a modern x86-64 server with $\geq 4$ CPU cores, $\geq 8$~GB RAM, $\geq 250$~GB SSD storage, and stable network connectivity.
+\item \textbf{Network:} a stable public IPv4 address with TCP port 30303 reachable for the libp2p P2P transport.
+\item \textbf{Self-stake:} a minimum bond of native SRX, locked while active and during the unbonding period.
+\item \textbf{Identity:} a registered validator wallet (secp256k1 keypair) with a human-readable validator name. The wallet signs blocks and votes; secure key management is the operator's responsibility.
+\end{itemize}
+
+There are no jurisdictional restrictions, no whitelist, no application process. Misbehavior is enforced economically (slashing) rather than administratively.
+
+\subsection{Incident Response}
+
+Sentrix's incident-response model is structured around three principles:
+
+\textbf{Detection through observation.} Every full node independently verifies block applications. State divergence produces divergent block hashes; nodes with divergent state cannot win the canonical chain.
+
+\textbf{Recovery through canonical-state alignment.} When validators diverge, the recovery protocol identifies the canonical state (the chain hash that supermajority of stake-weighted validators agrees on) and replicates it to the diverged node.
+
+\textbf{Coordinated upgrade through hard fork.} Bug fixes that require consensus changes ship as hard forks gated by activation height. Operators upgrade their binary before the activation height; on activation, all nodes apply the new logic atomically.
+
+\section{Security Model}
+
+Sentrix's security derives from four layers of guarantee.
+
+\subsection{Cryptographic Guarantee}
+
+Every transaction is signed with a private key whose public address authorizes the operation. Block headers contain the state root and the proposer's signature. The state root commits to the canonical state via the binary sparse Merkle tree.
+
+\subsection{Crypto-Economic Guarantee}
+
+Validators participate because it is profitable to do so honestly. Slashing makes dishonest validation negative-expected-value at any stake size.
+
+\subsection{Social Guarantee}
+
+The chain's behavior is observable. State, blocks, transactions, validator set, slashing events---all are public. Trust is replaced by verification.
+
+\subsection{Quantitative Security}
+
+The cost of compromising chain safety is bounded below by the cost of acquiring and slashing one-third of the total bonded SRX. If the protocol bonds $X$ SRX at market price $P$, the minimum attack cost $A$ satisfies:
+\begin{equation}
+A \geq \frac{X \cdot P}{3}
+\end{equation}
+
+This is a lower bound, not an upper bound. The bound rises monotonically with both $X$ (bonded supply) and $P$ (market price), which means chain success increases attack cost.
+
+\subsection{Long-Range Attacks and Weak Subjectivity}
+
+Pure proof-of-stake chains are theoretically vulnerable to long-range attacks: an attacker who acquires old validator keys can fork the chain from an arbitrarily early point. Sentrix defends against this through three mechanisms: an unbonding period during which stake remains slashable, weak-subjectivity checkpoints from which new nodes start their sync, and periodic active-set re-sync at intervals shorter than the unbonding period~\cite{casper}.
+
+\subsection{Failure Modes}
+
+The chain has four well-defined failure modes: more than $1/3$ Byzantine stake (safety not guaranteed); more than $2/3$ Byzantine stake (invalid state can be signed); network partition (minority halts, majority continues); coordinated censorship (resistant via proposer rotation).
+
+\subsection{Privacy Posture}
+
+Sentrix is transparent by design. Every transaction, balance, and contract call is publicly observable. This is a deliberate choice: the chain serves real-economy settlement, where audit trails are a feature rather than a liability. Users requiring privacy for specific use cases can build it on top: zk-rollup contracts, privacy-preserving DApps, off-chain commitments verified on-chain. The base layer remains observable; privacy is opt-in at the application layer.
+
+\section{The Real-Economy Thesis}
+
+Sentrix's positioning is real-world settlement.
+
+\textbf{Real-world assets.} Tangible and contractual rights---real estate, invoices, equity in private companies, rights to revenue streams, bills of lading---are valuable to their holders. They are also illiquid. A blockchain that can represent these as on-chain tokens, with provable provenance and atomic settlement, removes friction proportional to the value of the asset.
+
+\textbf{Local-currency settlement.} Most economic activity is denominated in local currencies---rupiah, peso, dong, baht, ringgit, dirham. A blockchain that supports stablecoin issuance against these currencies, with native operations for cheap fast transfer, becomes a settlement rail for retail commerce that does not currently have one.
+
+\textbf{Cross-border commerce and remittance.} Cross-border payments traditionally settle through correspondent banking with multi-day delays and disproportionate fees. A blockchain whose native operations cost fractions of a cent and finalize in one second is fundamentally suited to small-size cross-border flow. Indonesia is a remittance-receiving country at the scale of tens of billions of dollars per year.
+
+\textbf{Microfinance and cooperative settlement.} Group savings (\textit{arisan}), cooperative banking (\textit{koperasi simpan-pinjam}), and community lending are deeply embedded in Indonesian economic culture. They operate on trust, paper records, and informal coordination. A blockchain that can represent these flows---on-chain, verifiable, low-cost---is an upgrade rather than a replacement.
+
+\section{Comparison to Prior Work}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{lXXXXX}
+\toprule
+ & Block time & Finality & Consensus & VM & Supply policy \\
+\midrule
+Bitcoin~\cite{nakamoto2008}     & $\sim$10 min & Probabilistic       & PoW          & None     & Capped, halving \\
+Ethereum~\cite{buterin2014}     & $\sim$12 sec & Probabilistic $\to$ & PoS          & EVM      & Inflationary \\
+Solana~\cite{solana}            & $\sim$400 ms & Probabilistic       & PoH+TowerBFT & SVM      & Inflationary \\
+Cosmos~\cite{tendermint}        & $\sim$6 sec  & Single-block        & Tendermint   & SDK      & Inflationary \\
+Polygon                         & $\sim$2 sec  & Probabilistic       & PoS BFT      & EVM      & Inflationary \\
+Aptos                           & $\sim$250 ms & Single-block        & AptosBFT     & Move     & Inflationary \\
+Sui                             & $\sim$390 ms & Single-block        & Mysticeti    & Move     & Inflationary \\
+Near                            & $\sim$1.2 sec & Single-block       & Nightshade   & Wasm     & Inflationary \\
+\textbf{Sentrix}                & $\sim$\textbf{1 sec} & \textbf{Single-block} & \textbf{DPoS+BFT} & \textbf{EVM+Native} & \textbf{Capped+halving+burn} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Sentrix is not novel in any single dimension. Its contribution is the combination: native-EVM hybrid execution, stake-weighted BFT, deflationary capped supply, sub-second finality, oriented toward real-world settlement and rooted in the Indonesian market.
+
+\section{Governance}
+
+\subsection{Current State}
+
+Sentrix's protocol upgrades are coordinated through binary releases gated by activation height. The author releases new node binaries; operators upgrade in the time window before a fork's activation height; on activation, all nodes apply the new logic atomically. This is the same mechanism Bitcoin, Ethereum, and most Tendermint-based chains use for hard forks.
+
+\subsection{The SentrixSafe Multisig}
+
+Authority over privileged operations (validator authority key, treasury reserve management, fee-fork toggle) is held by the SentrixSafe multisig, a Gnosis-Safe-derived contract deployed at genesis. Currently configured 1-of-1 with the author as sole signer; intended to expand organically to N-of-M as the chain attracts long-term contributors who can credibly sign off on protocol-authority operations. There is no hard timeline; the bar is ``credible co-signer with operational continuity and skin-in-the-game,'' not ``calendar quarter.''
+
+\subsection{Future On-Chain Governance}
+
+Stage 5 of the path forward migrates protocol decisions onto a stake-weighted on-chain governance mechanism: anyone holding above a minimum stake may submit a proposal; voting is stake-weighted across the active validator set; proposals require minimum participation (target 33\%); pass thresholds vary by proposal type; passing proposals trigger pre-defined on-chain effects.
+
+\subsection{What Cannot Be Governed}
+
+Some chain properties are deliberately non-governable: the 315M SRX supply cap, the four-year halving schedule, the 50\% fee burn ratio, and the genesis allocation. No vote, no fork, no upgrade changes these. They are the parameters where stability is the feature.
+
+\section{Path Forward}
+
+We describe the trajectory of Sentrix in stages rather than dates.
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Stage 1: Mainnet operating.} Small geographically distributed validator set; native and EVM execution working; block explorer, faucet, dev tooling; source-available codebase. \textit{(Current.)}
+\item \textbf{Stage 2: Liquidity and discovery.} First on-chain market for SRX; first contracts deployed by external developers; chain-registry indexing; recognition by standard wallets and bridges.
+\item \textbf{Stage 3: Real-economy integrations.} First production use cases involving real-world assets, local-currency settlement, or cross-border flow.
+\item \textbf{Stage 4: Validator decentralization.} Growth from a small bootstrap to a meaningful number of independent operators across multiple jurisdictions.
+\item \textbf{Stage 5: On-chain governance.} Migration of meaningful protocol decisions onto stake-weighted governance.
+\item \textbf{Stage 6: Open-license activation.} BUSL-1.1 transitions to Apache 2.0 after the Change Date.
+\end{itemize}
+
+These stages do not run on a calendar. They run on the satisfaction of preconditions.
+
+\section{Conclusion}
+
+Sentrix is a deliberate response to a structural absence. The dominant blockchains of the present moment serve trading and speculation well, and they serve real economic settlement poorly. We do not believe this is inevitable. We believe it is the consequence of design choices that can be made differently.
+
+Sentrix's design choices are: native operations for common primitives, EVM compatibility for the general case, stake-weighted Byzantine Fault Tolerant consensus, sub-second finality, capped halving deflationary supply, and a market-entry orientation toward the Indonesian economy and the broader unmet demand for real-world settlement infrastructure.
+
+Sentrix is open to use, open to extension, and open to inspection. Real value, real assets, real economic activity---on chain, fast, final, and durable.
+
+\appendix
+
+\section{Protocol Parameters}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{lrX}
+\toprule
+Parameter & Value & Notes \\
+\midrule
+\texttt{BLOCK\_TIME}            & $\sim$1 s          & Target; actual varies with round duration \\
+\texttt{MAX\_TX\_PER\_BLOCK}    & 5{,}000            & Configurable at protocol level \\
+\texttt{MAX\_SUPPLY}            & 315{,}000{,}000 SRX & Hard cap, no governance override \\
+\texttt{INITIAL\_BLOCK\_REWARD} & 1 SRX              & Halves every \texttt{HALVING\_PERIOD} \\
+\texttt{HALVING\_PERIOD\_BLOCKS} & $\sim$126{,}000{,}000 & $\sim$4 years at 1 s blocks \\
+\texttt{MIN\_TX\_FEE}           & 10{,}000 sentri    & 0.0001 SRX (native rail) \\
+\texttt{BURN\_RATIO}            & 50\%               & Of every transaction fee \\
+\texttt{MIN\_VALIDATOR\_SELF\_STAKE} & parametric    & Configured at genesis \\
+\texttt{UNBONDING\_PERIOD}      & parametric         & Window stake-slashable after withdrawal \\
+\texttt{LIVENESS\_WINDOW}       & 14{,}400 blocks    & $\sim$4 hours at 1 s blocks \\
+\texttt{JAIL\_DURATION\_BLOCKS} & 600                & $\sim$10 minutes at 1 s blocks \\
+\texttt{DOWNTIME\_SLASH\_BP}    & 10 (0.1\%)         & Of self-stake at jail \\
+\texttt{EPOCH\_LENGTH}          & parametric         & Active-set rotation cadence \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Risk Disclosures}
+
+This appendix documents known risks. It is not exhaustive; readers must perform their own due diligence.
+
+\textbf{Technical risks.} Single Rust implementation: a bug can affect the entire network until patched; multi-implementation diversity is not present. Active validator set is small at this stage; sustained Byzantine behavior by a supermajority is theoretically possible until the active set grows.
+
+\textbf{Economic risks.} SRX is not currently trading on any exchange. There is no market price. The 315M cap is a protocol constant, not a market valuation. Until SentrixSafe expands to N-of-M and/or Founder allocation is on-chain vested, the Founder address can move 21M SRX at any time.
+
+\textbf{Regulatory risks.} The Indonesian regulatory landscape continues to evolve. Holders and validators in different jurisdictions face different regulatory regimes. SRX is intended as a utility token; whether any specific jurisdiction classifies it as a security depends on local law.
+
+\textbf{Operational risks.} Sentrix is solo-built. The author's continued participation is not guaranteed by any contract. Long-term resilience depends on the codebase being open enough that other operators can run forks (BUSL $\to$ Apache 2.0 after Change Date).
+
+\section{Legal Notice}
+
+This whitepaper is a description of a software protocol. It is not an offering document, prospectus, investment solicitation, or financial advice. SRX is a utility token used to pay transaction fees, secure the chain through staking, and (in the future) participate in governance.
+
+The Sentrix Chain protocol is open-source infrastructure under the Business Source License 1.1, transitioning to Apache 2.0 after the Change Date specified in the LICENSE file.
+
+The author makes no representations about future SRX market price, ecosystem adoption, partnership outcomes, or regulatory acceptance. Forward-looking statements describe intent, not guarantees. Readers are responsible for compliance with their local laws and regulations.
+
+\section*{About the Author}
+
+\textbf{Satya Kwok} built Sentrix Chain solo in Rust. The author's prior work and engagement is publicly observable on GitHub (\texttt{@satyakwok}) and through the project's open commit history at \href{https://github.com/sentrix-labs/sentrix}{\texttt{github.com/sentrix-labs/sentrix}}. The author is contactable at \href{mailto:satya@sentrixchain.com}{\texttt{satya@sentrixchain.com}}.
+
+\begin{thebibliography}{99}
+\bibitem{nakamoto2008} Nakamoto, S. (2008). \textit{Bitcoin: A Peer-to-Peer Electronic Cash System.}
+\bibitem{buterin2014} Buterin, V. (2014). \textit{Ethereum: A Next-Generation Smart Contract and Decentralized Application Platform.}
+\bibitem{tendermint} Buchman, E., Kwon, J. (2016). \textit{Tendermint: Byzantine Fault Tolerance in the Age of Blockchains.}
+\bibitem{revm} Bluealloy (2022). \textit{revm: Rust Ethereum Virtual Machine.}
+\bibitem{solana} Yakovenko, A. (2017). \textit{Solana: A new architecture for a high performance blockchain.}
+\bibitem{merkle} Merkle, R. (1980). \textit{Protocols for Public Key Cryptosystems.}
+\bibitem{mdbx} \textit{libmdbx: Memory-mapped key-value store.} \href{https://github.com/erthink/libmdbx}{\texttt{github.com/erthink/libmdbx}}
+\bibitem{libp2p} \textit{libp2p: Modular peer-to-peer networking stack.} \href{https://libp2p.io}{\texttt{libp2p.io}}
+\bibitem{kademlia} Maymounkov, P., Mazi\`eres, D. (2002). \textit{Kademlia: A Peer-to-peer Information System Based on the XOR Metric.}
+\bibitem{eip1559} Buterin, V.\ et al.\ (2019). \textit{EIP-1559: Fee market change for ETH 1.0 chain.}
+\bibitem{casper} Buterin, V., Griffith, V. (2017). \textit{Casper the Friendly Finality Gadget.}
+\end{thebibliography}
+
+\end{document}

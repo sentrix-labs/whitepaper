@@ -2,24 +2,41 @@
 
 Foundational paper for [Sentrix Chain](https://sentrixchain.com) — a Layer-One blockchain for the real economy.
 
+Author: Satya Kwok &lt;satya@sentrixchain.com&gt;
+
 ## Contents
 
-- [`sentrix-whitepaper-en.md`](sentrix-whitepaper-en.md) — English (canonical)
-- [`sentrix-whitepaper-en.pdf`](sentrix-whitepaper-en.pdf) — English PDF
+- [`sentrix-whitepaper-en.tex`](sentrix-whitepaper-en.tex) — English LaTeX source
+- [`sentrix-whitepaper-en.pdf`](sentrix-whitepaper-en.pdf) — English PDF (LaTeX-rendered, canonical)
+- [`sentrix-whitepaper-en.md`](sentrix-whitepaper-en.md) — English Markdown source
 - [`sentrix-whitepaper-en.html`](sentrix-whitepaper-en.html) — English HTML (browser-readable)
-- [`sentrix-whitepaper-id.md`](sentrix-whitepaper-id.md) — Bahasa Indonesia
-- [`sentrix-whitepaper-id.pdf`](sentrix-whitepaper-id.pdf) — Bahasa Indonesia PDF
+- [`sentrix-whitepaper-id.tex`](sentrix-whitepaper-id.tex) — Bahasa Indonesia LaTeX source
+- [`sentrix-whitepaper-id.pdf`](sentrix-whitepaper-id.pdf) — Bahasa Indonesia PDF (LaTeX-rendered)
+- [`sentrix-whitepaper-id.md`](sentrix-whitepaper-id.md) — Bahasa Indonesia Markdown source
 - [`sentrix-whitepaper-id.html`](sentrix-whitepaper-id.html) — Bahasa Indonesia HTML
+
+## Building from source
+
+```bash
+pdflatex sentrix-whitepaper-en.tex
+pdflatex sentrix-whitepaper-en.tex   # second pass for cross-references
+```
+
+Requires `texlive-latex-recommended`, `texlive-latex-extra`, `lmodern`, and (for the ID build) `texlive-lang-other`.
 
 ## Versions
 
-- **v1.2** (current, final unless chain hard-fork) — Adds genesis allocation
-  addresses (on-chain verifiable), validator onboarding requirements (§7.5),
-  incident response model (§7.6), privacy posture (§8.7), expanded comparison
-  with Aptos/Sui/Near, full governance section (§11) covering current
-  binary-release coordination + SentrixSafe multisig + future on-chain
-  governance + non-governable invariants, risk disclosures (Appendix B),
-  legal notice (Appendix C), and About the Author.
+- **v1.2.1** (current, final unless chain hard-fork) — LaTeX source (.tex)
+  added, contact email `satya@sentrixchain.com`, "Focus Statement" preamble
+  making explicit that Sentrix is financial infrastructure for the real
+  economy and not a speculation venue.
+- **v1.2** — Adds genesis allocation addresses (on-chain verifiable),
+  validator onboarding requirements (§7.5), incident response model (§7.6),
+  privacy posture (§8.7), expanded comparison with Aptos/Sui/Near, full
+  governance section (§11) covering current binary-release coordination +
+  SentrixSafe multisig + future on-chain governance + non-governable
+  invariants, risk disclosures (Appendix B), legal notice (Appendix C),
+  and About the Author.
 - **v1.1** — Vision, mission, and protocol depth: state transition function,
   BFT safety/liveness, network model, transaction lifecycle, slashing matrix,
   long-range attack defense, comparison table, parameters appendix.

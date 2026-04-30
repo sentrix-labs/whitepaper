@@ -2,14 +2,25 @@
 
 ### Blockchain Layer-One untuk Ekonomi Riil
 
-**Penulis:** Satya Kwok
-**Versi:** 1.2 (final kecuali ada hard fork chain)
+**Penulis:** Satya Kwok &lt;satya@sentrixchain.com&gt;
+**Web:** sentrixchain.com
+**Versi:** 1.2.1 (final kecuali ada hard fork chain)
 
 ---
 
 ## Abstrak
 
 Kami memperkenalkan Sentrix, sebuah blockchain Layer-One yang dioptimalkan untuk penyelesaian aktivitas ekonomi dunia riil. Sentrix menggunakan seleksi validator delegated-proof-of-stake yang dipadukan dengan protokol persetujuan Byzantine Fault Tolerant tiga fase untuk menghasilkan blok dengan finalitas satu detik. Operasi protokol native—penerbitan token, staking, koordinasi validator—dieksekusi langsung terhadap state kanonis, sementara jalur eksekusi kedua menjalankan Ethereum Virtual Machine untuk programabilitas umum. Kebijakan moneter ditetapkan: pasokan maksimum 315 juta SRX, block reward satu SRX yang halving setiap kira-kira 126 juta blok (empat tahun pada blok satu detik), dan mekanisme fee yang menghancurkan 50% setiap fee transaksi selamanya. Chain ini dirancang sebagai infrastruktur keuangan tahan lama untuk aktivitas ekonomi dunia riil, dimulai di Indonesia dan berkembang ke luar. Makalah ini menentukan rasional desain, arsitektur, siklus hidup transaksi, properti keamanan konsensus, mekanisme moneter, dan model ancaman.
+
+---
+
+## Pernyataan Fokus
+
+Sentrix adalah infrastruktur keuangan untuk ekonomi riil. Setiap pilihan desain dalam paper ini—finalitas sub-detik, primitif pembayaran native, kompatibilitas EVM, pasokan capped halving deflasioner, validator set terbuka tanpa izin—melayani satu tujuan: membuat pembayaran, tabungan, transfer aset, dan penyelesaian kontrak bekerja untuk bisnis dan rumah tangga riil, dimulai dari Indonesia.
+
+Sentrix bukan tempat spekulasi. Bukan chain DeFi-first. Bukan kerangka rollup. Bukan substrat high-frequency-trading. Sentrix adalah rel penyelesaian untuk aktivitas ekonomi yang sudah ada di dunia fisik—remitansi, pembayaran retail, invoicing pemasok, tabungan koperasi, tokenisasi aset dunia riil, perdagangan lintas-negara—dan yang selama ini dilayani dengan buruk baik oleh sistem perbankan lama maupun oleh chain publik berorientasi spekulasi sebelumnya.
+
+Konstanta ekonomi chain (cap 315 juta, halving empat tahun, burn fee 50%, alokasi genesis) tidak dapat diatur governance: tidak ada proposal, tidak ada fork, tidak ada upgrade yang dapat mengubahnya. Mereka adalah kontrak ekonomi fundamental antara protokol dan penggunanya, dan stabil selama chain beroperasi.
 
 ---
 

@@ -1,0 +1,436 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[indonesian]{babel}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{verbatim}
+\usepackage{fancyvrb}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  urlcolor=blue!50!black,
+  linkcolor=blue!50!black,
+  citecolor=blue!50!black,
+  pdftitle={Sentrix: Blockchain Layer-One untuk Ekonomi Riil},
+  pdfauthor={Satya Kwok}
+}
+\usepackage{titlesec}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+\titlespacing{\subsection}{0pt}{10pt}{4pt}
+
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+\title{\textbf{Sentrix}\\[2pt]\large Blockchain Layer-One untuk Ekonomi Riil}
+\author{Satya Kwok\\\href{mailto:satya@sentrixchain.com}{satya@sentrixchain.com}\\\href{https://sentrixchain.com}{sentrixchain.com}}
+\date{Versi 1.2.1 \quad\textit{(final kecuali ada hard fork chain)}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Kami memperkenalkan Sentrix, sebuah blockchain Layer-One yang dioptimalkan untuk penyelesaian aktivitas ekonomi dunia riil. Sentrix menggunakan seleksi validator delegated-proof-of-stake yang dipadukan dengan protokol persetujuan Byzantine Fault Tolerant tiga fase untuk menghasilkan blok dengan finalitas satu detik. Operasi protokol native---penerbitan token, staking, koordinasi validator---dieksekusi langsung terhadap state kanonis, sementara jalur eksekusi kedua menjalankan Ethereum Virtual Machine untuk programabilitas umum. Kebijakan moneter ditetapkan: pasokan maksimum 315 juta SRX, block reward satu SRX yang halving setiap kira-kira 126 juta blok (empat tahun pada blok satu detik), dan mekanisme fee yang menghancurkan 50\% setiap fee transaksi selamanya. Chain ini dirancang sebagai infrastruktur keuangan tahan lama untuk aktivitas ekonomi dunia riil, dimulai di Indonesia dan berkembang ke luar.
+\end{abstract}
+
+\section*{Pernyataan Fokus}
+
+Sentrix adalah infrastruktur keuangan untuk ekonomi riil. Setiap pilihan desain dalam paper ini---finalitas sub-detik, primitif pembayaran native, kompatibilitas EVM, pasokan capped halving deflasioner, validator set terbuka tanpa izin---melayani satu tujuan: membuat pembayaran, tabungan, transfer aset, dan penyelesaian kontrak bekerja untuk bisnis dan rumah tangga riil, dimulai dari Indonesia.
+
+Sentrix bukan tempat spekulasi. Bukan chain DeFi-first. Bukan kerangka rollup. Bukan substrat high-frequency-trading. Sentrix adalah rel penyelesaian untuk aktivitas ekonomi yang sudah ada di dunia fisik---remitansi, pembayaran retail, invoicing pemasok, tabungan koperasi, tokenisasi aset dunia riil, perdagangan lintas-negara---dan yang selama ini dilayani dengan buruk baik oleh sistem perbankan lama maupun oleh chain publik berorientasi spekulasi sebelumnya.
+
+Konstanta ekonomi chain (cap 315 juta, halving empat tahun, burn fee 50\%, alokasi genesis) tidak dapat diatur governance: tidak ada proposal, tidak ada fork, tidak ada upgrade yang dapat mengubahnya. Mereka adalah kontrak ekonomi fundamental antara protokol dan penggunanya, dan stabil selama chain beroperasi.
+
+\section{Pendahuluan}
+
+Sebagian besar blockchain publik dirancang untuk hal lain selain melayani aktivitas ekonomi riil. Bitcoin dirancang sebagai sistem kas elektronik peer-to-peer~\cite{nakamoto2008}, namun pada praktiknya beroperasi terutama sebagai lapisan penyelesaian untuk penyimpanan nilai. Ethereum dirancang sebagai komputer dunia~\cite{buterin2014}, namun ekonomi on-chain-nya didominasi oleh spekulasi finansial, perdagangan on-chain, dan aset sintetis. Solusi penskalaan Layer-Two mewarisi orientasi ini dan memperbesarnya.
+
+Disconnect antara infrastruktur blockchain dan aktivitas ekonomi riil mayoritas populasi dunia sangat mencolok. Sebagian besar perdagangan manusia masih didenominasi dalam mata uang lokal, diselesaikan melalui jalur perbankan yang tidak mengalami perbaikan substansial selama puluhan tahun, dan secara efektif terkucil dari partisipasi blockchain publik. Friksi ini bukan filosofis---bisnis riil, koperasi riil, pedagang lintas-negara riil menginginkan penyelesaian yang cepat dan final---melainkan arsitektural.
+
+Sentrix adalah respons terhadap kesenjangan arsitektural ini. Sentrix adalah blockchain yang setiap pilihan desainnya memprioritaskan penyelesaian ekonomi riil di atas spekulasi perdagangan. Sentrix dibangun pertama-tama untuk Indonesia, di mana populasi, proporsi unbanked, dan volume remitansi membentuk demand yang besar dan belum terpenuhi.
+
+\section{Visi, Misi, dan Alasan Keberadaan}
+
+\subsection{Visi}
+
+Masa depan di mana aktivitas ekonomi dunia riil---pembayaran lintas-negara, lending berbasis aset, perdagangan retail, tabungan koperasi, penyelesaian rantai pasok, verifikasi identitas---berjalan di atas rel yang transparan, berbiaya rendah, dapat diprogram, tidak dimiliki oleh korporasi tunggal, dapat diakses dari koneksi internet mana pun, dan secepat gesekan kartu kredit.
+
+\subsection{Misi}
+
+Membangun lapisan penyelesaian yang paling andal, biaya rendah, dan mudah diakses untuk aktivitas ekonomi dunia riil, dimulai dari geografi dan kasus penggunaan yang gagal dilayani oleh infrastruktur lama.
+
+Secara konkret:
+
+\begin{itemize}[leftmargin=*]
+\item Penyelesaian final satu detik untuk transfer, swap, atau pemanggilan kontrak apa pun.
+\item Biaya transaksi diukur dalam pecahan sen, terlepas dari ukuran transfer.
+\item Dukungan protokol native untuk penerbitan token, staking, dan manajemen aset tanpa memerlukan deploy smart contract.
+\item Kompatibilitas dengan toolchain developer Ethereum global.
+\item Codebase terbuka, operasi transparan, kebijakan moneter deterministik.
+\item Orientasi pintu masuk pasar ke Indonesia dan Asia Tenggara.
+\end{itemize}
+
+\subsection{Mengapa Sentrix Ada}
+
+Empat dimensi masalah infrastruktur yang kami atasi:
+
+\textbf{Latensi.} Rel pembayaran yang ada menyelesaikan dalam hitungan hari (correspondent banking), jam (jaringan kartu), atau puluhan detik. Perdagangan riil menuntut konfirmasi sub-detik untuk point-of-sale, retail, dan operasi bisnis rutin.
+
+\textbf{Biaya.} Fee remitansi lintas-negara 5--10\% masih umum. Interchange fee 1--3\% mengekstrak nilai pada setiap transaksi retail. Operasi native Sentrix menargetkan biaya yang diukur dalam pecahan sen US.
+
+\textbf{Programabilitas tanpa overhead.} Operasi rutin seperti mentransfer token, mengklaim reward staking, atau mendaftarkan validator seharusnya tidak memerlukan deploy kode smart-contract yang diaudit.
+
+\textbf{Inklusi.} Infrastruktur perbankan berkorelasi dengan kekayaan nasional. Sentrix diposisikan untuk membalik default ini dengan membangun pertama-tama untuk geografi yang paling tidak dilayani.
+
+\subsection{Mengapa Indonesia Pertama}
+
+Indonesia adalah negara terpadat keempat di dunia dan ekonomi terbesar di Asia Tenggara: populasi muda mobile-first, populasi unbanked atau underbanked yang besar ($\sim$40\%), struktur ekonomi informal yang kuat (perbankan koperasi, lending komunitas, microfinance), aliran remitansi pada skala puluhan miliar dolar per tahun, dan komunitas developer crypto-aware lokal yang berarti.
+
+\section{Prinsip Desain}
+
+Enam prinsip membentuk setiap keputusan arsitektural di Sentrix:
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Penyelesaian di atas spekulasi.} Blockchain yang dioptimalkan untuk perdagangan menciptakan struktur insentif yang menghasilkan perdagangan. Blockchain yang dioptimalkan untuk penyelesaian menghasilkan perdagangan ekonomi riil.
+\item \textbf{Primitif native di atas overhead kontrak.} Operasi yang akan dilakukan oleh hampir setiap pengguna seharusnya tidak memerlukan deploy atau interaksi dengan smart contract.
+\item \textbf{Kompatibilitas EVM untuk kasus umum.}
+\item \textbf{Kebijakan moneter deflasioner.} Sentrix dibatasi pasokan, halving sesuai jadwal Bitcoin, dan membakar separuh dari setiap fee.
+\item \textbf{Keamanan kripto-ekonomi melalui staking.}
+\item \textbf{Riil di atas nominal.} Aset dunia riil, bisnis riil, aktivitas ekonomi riil.
+\end{enumerate}
+
+\section{Arsitektur}
+
+Sentrix terstruktur sebagai empat subsistem terintegrasi yang beroperasi pada satu state kanonis tunggal: lapisan konsensus (DPoS+BFT), lapisan eksekusi (rail native + rail EVM), lapisan state (binary sparse Merkle tree di MDBX), dan jaringan libp2p.
+
+\subsection{Lapisan Konsensus}
+
+Sentrix menggunakan model seleksi delegated-proof-of-stake yang dipadukan dengan protokol persetujuan Byzantine Fault Tolerant tiga fase~\cite{tendermint}.
+
+\subsubsection*{Seleksi Validator}
+
+Validator set dipilih oleh delegasi yang dibobotkan stake. Pemegang token mana pun dapat mendelegasikan kepada kandidat validator mana pun; ranking berbobot yang dihasilkan menentukan active set untuk setiap epoch. Self-stake minimum dilaksanakan pada level protokol; stake yang didelegasikan diikat dengan periode unbonding.
+
+\subsubsection*{Ronde Tiga Fase}
+
+Sebuah blok bersifat final ketika supermayoritas ($\geq 2/3$ dari active set yang dibobotkan stake) precommit blok yang sama dalam ronde yang sama.
+
+\begin{figure}[h]
+\centering
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+   PROPOSE phase    PREVOTE phase    PRECOMMIT phase    COMMIT
+        |                 |                 |             |
+        v                 v                 v             v
+   t=0              t~300ms           t~600ms          t~1s
+   - proposer P     - setiap          - setiap         - blok
+     untuk H          validator         validator        difinalisasi
+     mengusulkan B    prevote B         precommit B
+                      jika valid        jika 2/3+
+                                        prevote B
+\end{Verbatim}
+\caption{Timing ronde BFT: satu detik dari proposal ke finalisasi.}
+\end{figure}
+
+\subsubsection*{Aturan Locking}
+
+Setelah validator prevote sebuah blok dalam ronde, ia mengunci pada blok tersebut. Properti locking inilah yang menjamin keamanan: dua blok yang konflik tidak dapat keduanya mengumpulkan precommit supermayoritas.
+
+\subsubsection*{Keamanan dan Liveness}
+
+Di bawah asumsi bahwa kurang dari sepertiga validator aktif berbobot stake bersifat Byzantine: \textbf{Agreement} (tidak ada dua validator jujur memfinalisasi blok berbeda pada height yang sama) dan \textbf{Validity} (blok yang difinalisasi adalah well-formed dan apply secara bersih). Liveness berlaku di bawah asumsi weak-synchrony.
+
+\subsection{Lapisan Eksekusi}
+
+Dua jalur eksekusi beroperasi pada state kanonis yang sama. \textbf{Ethereum Virtual Machine}~\cite{revm}: kontrak Ethereum standar (ERC-20, ERC-721, pool ala Uniswap, protokol lending) dapat di-deploy tanpa modifikasi; tooling standar (Foundry, Hardhat, MetaMask, ethers, viem) bekerja langsung; akuntansi gas mengikuti EIP-1559. \textbf{Operasi protokol native}: penerbitan token (\texttt{SRC-20}), staking, dan koordinasi validator bukan smart contract melainkan transaksi yang ditafsirkan langsung oleh protokol.
+
+\subsection{Lapisan State}
+
+Sentrix memelihara binary sparse Merkle tree sebagai representasi state kanonis~\cite{merkle}, dipersistensikan di MDBX~\cite{mdbx}. Fungsi transisi state $\mathrm{APPLY}(S, B)$ mengambil state $S$ dan blok $B$ dan menghasilkan state baru $S'$ atau $\mathrm{INVALID}$:
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single]
+APPLY(S, B):
+  1. Verifikasi header B (parent hash, timestamp, signature proposer).
+  2. Untuk setiap transaksi TX dalam B.txs, secara berurutan:
+       a. Verifikasi signature TX terhadap TX.from.
+       b. Verifikasi TX.nonce == S[TX.from].nonce.
+       c. Hitung fee = TX.gas_used x TX.gas_price (jalur EVM)
+                       atau MIN_TX_FEE (jalur native).
+       d. Jika S[TX.from].balance < fee + TX.value: skip.
+       e. Kurangi fee dari TX.from.
+       f. Bakar 50% fee ke BURN_ADDRESS; bayar 50% ke proposer.
+       g. Apply TX (jalur EVM via revm, jalur native via dispatch).
+       h. Update accounts, increment nonce, emit events.
+  3. Hitung state root baru dari trie yang diupdate.
+  4. Verifikasi state root baru cocok dengan B.header.state_root.
+  5. Return S' jika semua check lolos; jika tidak, INVALID.
+\end{Verbatim}
+
+Fungsi ini deterministik: setiap node yang mengeksekusi $S$ dan $B$ yang sama menghasilkan $S'$ yang bit-identik.
+
+\subsection{Model Jaringan}
+
+Node Sentrix berkomunikasi melalui mesh libp2p~\cite{libp2p}: block gossip pada \texttt{sentrix/blocks/1}, transaction gossip pada \texttt{sentrix/txs/1}, dan pesan BFT pada \texttt{sentrix/bft/1}. Penemuan peer menggunakan Kademlia DHT~\cite{kademlia} dengan alamat seed peer untuk bootstrap.
+
+\section{Operasi Native}
+
+Pilihan desain sentral di Sentrix adalah promosi primitif ekonomi umum dari smart contract menjadi operasi protokol. Tiga biaya dari pendekatan kontrak-untuk-segalanya: overhead eksekusi (transfer token sederhana memerlukan $\sim$21.000 gas plus eksekusi kontrak), overhead keamanan (setiap kontrak harus diaudit independen), dan friksi upgradabilitas.
+
+Set operasi native Sentrix: operasi Token \texttt{SRC-20}; operasi Staking (delegate, undelegate, claim rewards, register validator); transfer Native (\texttt{MIN\_TX\_FEE} = 10.000 sentri = 0,0001 SRX, 50\% dibakar 50\% ke proposer); koordinasi Validator.
+
+\section{Tokenomik}
+
+Aset native Sentrix adalah SRX. Kebijakan moneternya tetap.
+
+\subsection{Pasokan dan Halving}
+
+Pasokan maksimum adalah 315 juta SRX. Block reward dasar adalah satu SRX, halving setiap kira-kira 126 juta blok ($\sim$empat tahun pada blok 1 detik).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{cccr}
+\toprule
+Era & Tahun & Block reward & Total dikeluarkan \\
+\midrule
+1 & 0--4   & 1,0000 SRX & 126,00 juta SRX \\
+2 & 4--8   & 0,5000 SRX & 189,00 juta SRX \\
+3 & 8--12  & 0,2500 SRX & 220,50 juta SRX \\
+4 & 12--16 & 0,1250 SRX & 236,25 juta SRX \\
+5 & 16--20 & 0,0625 SRX & 244,13 juta SRX \\
+\multicolumn{4}{c}{$\cdots$ (asimtotik)} \\
+\bottomrule
+\end{tabular}
+\caption{Jadwal halving. Dikombinasikan dengan premine 63 juta, pasokan maksimum mendekati 315 juta SRX dalam horizon $\sim$24 tahun.}
+\end{table}
+
+\subsection{Mekanisme Fee}
+
+\textbf{Jalur native}: \texttt{MIN\_TX\_FEE} flat 10.000 sentri (0,0001 SRX) per transaksi. \textbf{Jalur EVM}: mekanika EIP-1559~\cite{eip1559} standar.
+
+Dari setiap fee yang dibayar, di kedua jalur: \textbf{50\% dihancurkan selamanya} dengan dikirim ke alamat burn yang dapat diverifikasi; \textbf{50\% dibayarkan kepada proposer blok}. Total yang dibakar dapat diamati publik di chain.
+
+\subsection{Premine dan Distribusi Awal}
+
+Premine sebesar 63 juta SRX---20\% dari cap pasokan---dialokasikan saat genesis. Seluruh alamat alokasi bersifat publik dan dapat diverifikasi on-chain:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{lrlX}
+\toprule
+Peran & Jumlah & Alamat (saat ini) & Tujuan \\
+\midrule
+Founder & 21M SRX & \texttt{0x5b5b...279d} & Treasury, pengembangan awal, kelangsungan operasional \\
+Early Validator & 10,5M SRX & \texttt{0x328d...fa47} & Bootstrap validator awal, seeding reward \\
+Ecosystem Fund & 21M SRX & \texttt{0xeb70...9f14} & Hibah, hadiah hackathon, integrasi kemitraan \\
+Reserve & 10,5M SRX & \texttt{0x2578...ba97} & Cadangan strategis di bawah multi-signature \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Sisa 80\% pasokan (252 juta SRX) diterbitkan melalui block reward selama kira-kira 24 tahun.
+
+\textbf{Vesting:} Premine tidak memiliki jadwal vesting on-chain. Alokasi Founder secara operasional diperlakukan sebagai posisi jangka panjang oleh penulis---bukan posisi yang dapat diperdagangkan---namun ini adalah komitmen perilaku, bukan paksaan protokol.
+
+\textbf{Manajemen treasury.} Ecosystem Fund (21 juta SRX) adalah anggaran ekspansi utama. Penggunaan yang dimaksudkan, dalam urutan prioritas: (1) seed likuiditas untuk pool DEX SRX/stablecoin pertama, (2) hadiah hackathon dan hibah developer hingga 100K SRX per proyek, (3) subsidi integrasi kemitraan, (4) hibah infrastruktur untuk validator independen.
+
+\subsection{Routing Reward}
+
+Block reward tidak membayar validator secara langsung. Mereka dikreditkan ke escrow treasury protokol, dari mana validator dan delegator mereka mengklaim earning yang terakumulasi melalui operasi staking.
+
+\section{Ekonomi Validator}
+
+\subsection{Stake yang Dipertaruhkan dan Slashing}
+
+Setiap validator harus mengikat self-stake minimum ke protokol.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{5cm}cl}
+\toprule
+Pemicu & Bukti & Stake di-slash & Jail \\
+\midrule
+Double-sign & Dua signature pada blok konflik di height yang sama & 20\% (parametrik) & Permanen (tombstone) \\
+Downtime    & Melewatkan $>$ threshold blok dalam window           & 0,1\% (parametrik) & Configurable \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+SRX yang di-slash dihancurkan, bukan didistribusi ulang.
+
+\subsection{Block Reward dan Bagi Hasil Fee}
+
+Pendapatan harapan validator per epoch:
+\begin{align*}
+\mathrm{revenue} &= (\mathrm{block\_subsidy} \times \mathrm{blocks\_proposed}) + (\mathrm{fee\_share} \times \mathrm{tx\_fees}) \\
+\mathrm{blocks\_proposed} &\approx \mathrm{epoch\_length} \times \frac{\mathrm{validator\_stake}}{\mathrm{total\_active\_stake}} \\
+\mathrm{fee\_share} &= 0{,}5
+\end{align*}
+
+\subsection{Menjadi Validator}
+
+Validator set bersifat terbuka dan tanpa izin. Persyaratan: hardware x86-64 modern dengan $\geq 4$ inti CPU, $\geq 8$~GB RAM, $\geq 250$~GB SSD; alamat IPv4 publik stabil dengan port TCP 30303; bond minimum self-stake; wallet validator yang terdaftar (keypair secp256k1). Tidak ada pembatasan yurisdiksi, tidak ada whitelist.
+
+\subsection{Respons Insiden}
+
+Tiga prinsip: \textbf{Deteksi melalui observasi} (setiap full node secara independen memverifikasi penerapan blok); \textbf{Pemulihan melalui penjajaran state-kanonis} (replikasi chain.db dari supermayoritas yang setuju); \textbf{Upgrade terkoordinasi melalui hard fork} (height aktivasi yang diumumkan; window 1--7 hari untuk koordinasi).
+
+\section{Model Keamanan}
+
+Empat lapisan jaminan: \textbf{Kriptografis} (signature secp256k1, state root kanonis); \textbf{Kripto-ekonomi} (slashing membuat validasi tidak jujur memiliki nilai harapan negatif); \textbf{Sosial} (semua perilaku chain dapat diobservasi); \textbf{Kuantitatif}.
+
+\subsection{Keamanan Kuantitatif}
+
+Biaya untuk mengompromikan keamanan chain dibatasi ke bawah oleh biaya untuk mengakuisisi dan slashing sepertiga dari total bonded SRX. Jika protokol mengikat $X$ SRX pada harga pasar $P$:
+\begin{equation}
+A \geq \frac{X \cdot P}{3}
+\end{equation}
+
+\subsection{Mode Kegagalan}
+
+Empat mode kegagalan well-defined: lebih dari $1/3$ stake Byzantine (keamanan tidak lagi dijamin); lebih dari $2/3$ stake Byzantine (state invalid dapat diproduksi); partisi jaringan (minoritas berhenti, mayoritas berlanjut); sensor terkoordinasi (tahan terhadap sensor satu kali via rotasi proposer).
+
+\subsection{Postur Privasi}
+
+Sentrix bersifat transparan by design. Setiap transaksi, saldo, dan pemanggilan kontrak dapat diamati publik. Pengguna yang membutuhkan privasi untuk kasus penggunaan spesifik dapat membangun di atasnya: kontrak zk-rollup, dApp privacy-preserving, komitmen off-chain yang diverifikasi on-chain. Lapisan dasar tetap dapat diobservasi.
+
+\section{Tesis Ekonomi Riil}
+
+Posisi Sentrix adalah penyelesaian dunia riil.
+
+\textbf{Aset dunia riil.} Hak atas sesuatu yang tangible dan kontraktual---real estate, faktur, ekuitas, hak atas aliran pendapatan, bill of lading---berharga bagi pemiliknya. Mereka tidak likuid. Blockchain yang dapat merepresentasikan ini sebagai token on-chain dengan provenance yang dapat dibuktikan menghilangkan friksi proporsional dengan nilai aset.
+
+\textbf{Penyelesaian mata uang lokal.} Sebagian besar aktivitas ekonomi didenominasi dalam mata uang lokal (rupiah, peso, dong, baht, ringgit, dirham). Blockchain yang mendukung penerbitan stablecoin terhadap mata uang ini menjadi rel penyelesaian untuk perdagangan retail.
+
+\textbf{Perdagangan lintas-negara dan remitansi.} Pembayaran lintas-negara secara tradisional diselesaikan melalui correspondent banking dengan keterlambatan beberapa hari dan fee tidak proporsional. Indonesia adalah negara penerima remitansi pada skala puluhan miliar dolar per tahun.
+
+\textbf{Microfinance dan koperasi.} Tabungan kelompok (\textit{arisan}), perbankan koperasi (\textit{koperasi simpan-pinjam}), dan pinjaman komunitas tertanam dalam dalam budaya ekonomi Indonesia.
+
+\section{Perbandingan dengan Karya Sebelumnya}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{lXXXXX}
+\toprule
+ & Block time & Finalitas & Konsensus & VM & Kebijakan pasokan \\
+\midrule
+Bitcoin~\cite{nakamoto2008}     & $\sim$10 min & Probabilistik       & PoW          & ---      & Capped, halving \\
+Ethereum~\cite{buterin2014}     & $\sim$12 sec & Probabilistik $\to$ & PoS          & EVM      & Inflasioner \\
+Solana~\cite{solana}            & $\sim$400 ms & Probabilistik       & PoH+TowerBFT & SVM      & Inflasioner \\
+Cosmos~\cite{tendermint}        & $\sim$6 sec  & Single-block        & Tendermint   & SDK      & Inflasioner \\
+Polygon                         & $\sim$2 sec  & Probabilistik       & PoS BFT      & EVM      & Inflasioner \\
+Aptos                           & $\sim$250 ms & Single-block        & AptosBFT     & Move     & Inflasioner \\
+Sui                             & $\sim$390 ms & Single-block        & Mysticeti    & Move     & Inflasioner \\
+Near                            & $\sim$1.2 sec & Single-block       & Nightshade   & Wasm     & Inflasioner \\
+\textbf{Sentrix}                & $\sim$\textbf{1 sec} & \textbf{Single-block} & \textbf{DPoS+BFT} & \textbf{EVM+Native} & \textbf{Capped+halving+burn} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Kontribusi Sentrix adalah kombinasi: eksekusi hibrida native-EVM, BFT berbobot stake, pasokan capped deflasioner, finalitas sub-detik, berorientasi pada penyelesaian dunia riil dan berakar di pasar Indonesia.
+
+\section{Tata Kelola}
+
+\subsection{Status Saat Ini}
+
+Upgrade protokol dikoordinasikan melalui rilis biner yang di-gate oleh height aktivasi---mekanisme yang sama digunakan Bitcoin, Ethereum, dan sebagian besar chain berbasis Tendermint.
+
+\subsection{SentrixSafe Multisig}
+
+Otoritas atas operasi privileged dipegang oleh SentrixSafe multisig (kontrak turunan Gnosis-Safe). Saat ini 1-of-1 dengan penulis sebagai sole signer; berkembang secara organik ke N-of-M seiring chain menarik kontributor jangka panjang.
+
+\subsection{Governance On-Chain Mendatang}
+
+Tahap 5 memigrasi keputusan protokol ke mekanisme governance on-chain berbobot stake.
+
+\subsection{Yang Tidak Dapat Diatur Governance}
+
+Cap pasokan 315 juta SRX, jadwal halving empat tahun, rasio burn fee 50\%, dan alokasi genesis. Tidak ada vote, tidak ada fork, tidak ada upgrade yang mengubah ini. Stabilitas adalah fitur.
+
+\section{Arah ke Depan}
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Tahap 1: Mainnet beroperasi.} \textit{(Status saat ini.)}
+\item \textbf{Tahap 2: Likuiditas dan penemuan.}
+\item \textbf{Tahap 3: Integrasi ekonomi riil.}
+\item \textbf{Tahap 4: Desentralisasi validator.}
+\item \textbf{Tahap 5: Governance on-chain.}
+\item \textbf{Tahap 6: Aktivasi lisensi terbuka.}
+\end{itemize}
+
+Tahap-tahap ini tidak berjalan pada kalender. Mereka berjalan pada kepuasan prasyarat.
+
+\section{Kesimpulan}
+
+Sentrix adalah respons yang disengaja terhadap absennya struktur. Pilihan desain Sentrix: operasi native untuk primitif umum, kompatibilitas EVM untuk kasus umum, konsensus BFT berbobot stake, finalitas sub-detik, pasokan capped halving deflasioner, dan orientasi pintu masuk pasar terhadap ekonomi Indonesia. Sentrix terbuka untuk digunakan, terbuka untuk diperluas, dan terbuka untuk diperiksa. Nilai riil, aset riil, aktivitas ekonomi riil---on chain, cepat, final, dan tahan lama.
+
+\appendix
+
+\section{Parameter Protokol}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{lrX}
+\toprule
+Parameter & Nilai & Catatan \\
+\midrule
+\texttt{BLOCK\_TIME}            & $\sim$1 d          & Target; aktual bervariasi dengan durasi ronde \\
+\texttt{MAX\_TX\_PER\_BLOCK}    & 5.000              & Configurable pada level protokol \\
+\texttt{MAX\_SUPPLY}            & 315.000.000 SRX    & Hard cap, tidak ada governance override \\
+\texttt{INITIAL\_BLOCK\_REWARD} & 1 SRX              & Halving setiap \texttt{HALVING\_PERIOD} \\
+\texttt{HALVING\_PERIOD\_BLOCKS} & $\sim$126.000.000 & $\sim$4 tahun pada blok 1 d \\
+\texttt{MIN\_TX\_FEE}           & 10.000 sentri      & 0,0001 SRX (jalur native) \\
+\texttt{BURN\_RATIO}            & 50\%               & Dari setiap fee transaksi \\
+\texttt{MIN\_VALIDATOR\_SELF\_STAKE} & parametrik    & Dikonfigurasi di genesis \\
+\texttt{UNBONDING\_PERIOD}      & parametrik         & Window stake-slashable setelah penarikan \\
+\texttt{LIVENESS\_WINDOW}       & 14.400 blok        & $\sim$4 jam pada blok 1 d \\
+\texttt{JAIL\_DURATION\_BLOCKS} & 600                & $\sim$10 menit pada blok 1 d \\
+\texttt{DOWNTIME\_SLASH\_BP}    & 10 (0,1\%)         & Dari self-stake saat jail \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Pengungkapan Risiko}
+
+Lampiran ini mendokumentasikan risiko yang diketahui. Tidak bersifat exhaustive.
+
+\textbf{Risiko teknis.} Implementasi Rust tunggal: bug dapat memengaruhi seluruh jaringan sampai di-patch; diversitas multi-implementasi tidak ada. Active validator set kecil pada tahap ini.
+
+\textbf{Risiko ekonomi.} SRX saat ini tidak diperdagangkan di exchange atau DEX mana pun; tidak ada harga pasar. Cap 315 juta adalah konstanta protokol, bukan valuasi pasar. Sampai SentrixSafe berkembang ke N-of-M dan/atau alokasi Founder di-vesting on-chain, alamat Founder dapat memindahkan 21 juta SRX kapan saja.
+
+\textbf{Risiko regulasi.} Lanskap regulasi Indonesia berkembang. Holder dan validator di yurisdiksi berbeda menghadapi rezim regulasi berbeda. SRX dimaksudkan sebagai utility token; klasifikasi tergantung pada hukum lokal.
+
+\textbf{Risiko operasional.} Sentrix dibangun solo. Resilience jangka panjang tergantung pada codebase yang cukup terbuka sehingga operator lain dapat menjalankan fork (transisi BUSL $\to$ Apache 2.0 setelah Change Date).
+
+\section{Pemberitahuan Hukum}
+
+Whitepaper ini adalah deskripsi protokol software. Ini bukan offering document, prospektus, solicitation investasi, atau nasihat finansial. SRX adalah utility token yang digunakan untuk membayar fee transaksi, mengamankan chain melalui staking, dan (di masa depan) berpartisipasi dalam governance.
+
+Protokol Sentrix Chain adalah infrastruktur open-source di bawah Business Source License 1.1, bertransisi ke Apache 2.0 setelah Change Date. Pembaca bertanggung jawab atas kepatuhan terhadap hukum dan regulasi lokal mereka.
+
+\section*{Tentang Penulis}
+
+\textbf{Satya Kwok} membangun Sentrix Chain solo dalam Rust. Karya sebelumnya dapat diobservasi publik di GitHub (\texttt{@satyakwok}) dan melalui history commit terbuka proyek di \href{https://github.com/sentrix-labs/sentrix}{\texttt{github.com/sentrix-labs/sentrix}}. Kontak: \href{mailto:satya@sentrixchain.com}{\texttt{satya@sentrixchain.com}}.
+
+\begin{thebibliography}{99}
+\bibitem{nakamoto2008} Nakamoto, S. (2008). \textit{Bitcoin: A Peer-to-Peer Electronic Cash System.}
+\bibitem{buterin2014} Buterin, V. (2014). \textit{Ethereum: A Next-Generation Smart Contract and Decentralized Application Platform.}
+\bibitem{tendermint} Buchman, E., Kwon, J. (2016). \textit{Tendermint: Byzantine Fault Tolerance in the Age of Blockchains.}
+\bibitem{revm} Bluealloy (2022). \textit{revm: Rust Ethereum Virtual Machine.}
+\bibitem{solana} Yakovenko, A. (2017). \textit{Solana: A new architecture for a high performance blockchain.}
+\bibitem{merkle} Merkle, R. (1980). \textit{Protocols for Public Key Cryptosystems.}
+\bibitem{mdbx} \textit{libmdbx: Memory-mapped key-value store.} \href{https://github.com/erthink/libmdbx}{\texttt{github.com/erthink/libmdbx}}
+\bibitem{libp2p} \textit{libp2p: Modular peer-to-peer networking stack.} \href{https://libp2p.io}{\texttt{libp2p.io}}
+\bibitem{kademlia} Maymounkov, P., Mazi\`eres, D. (2002). \textit{Kademlia: A Peer-to-peer Information System Based on the XOR Metric.}
+\bibitem{eip1559} Buterin, V.\ et al.\ (2019). \textit{EIP-1559: Fee market change for ETH 1.0 chain.}
+\end{thebibliography}
+
+\end{document}
