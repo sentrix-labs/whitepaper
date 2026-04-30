@@ -33,7 +33,7 @@ Requires `texlive-latex-recommended`, `texlive-latex-extra`, `lmodern`, and (for
   but actually deployed shortly after Voyager activation as part of the
   canonical contracts set.
 
-- **v1.2.3** (current, final unless chain hard-fork) — Two corrections.
+- **v1.2.3** — Two corrections.
   First, the §6.4 premine table no longer carries fabricated
   sub-allocation strings ("market-making seed", "DEX liquidity
   bootstrap", "under multi-signature control") — those operational
