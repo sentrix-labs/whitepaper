@@ -10,10 +10,10 @@ Author: Satya Kwok &lt;satya@sentrixchain.com&gt;
 - [`sentrix-whitepaper-en.pdf`](sentrix-whitepaper-en.pdf) — English PDF (LaTeX-rendered, canonical)
 - [`sentrix-whitepaper-en.md`](sentrix-whitepaper-en.md) — English Markdown source (v1.3.0)
 - [`sentrix-whitepaper-en.html`](sentrix-whitepaper-en.html) — English HTML (browser-readable)
-- [`sentrix-whitepaper-id.tex`](sentrix-whitepaper-id.tex) — Bahasa Indonesia LaTeX source (v1.2.4 — translation lag, see Versions)
-- [`sentrix-whitepaper-id.pdf`](sentrix-whitepaper-id.pdf) — Bahasa Indonesia PDF (v1.2.4)
-- [`sentrix-whitepaper-id.md`](sentrix-whitepaper-id.md) — Bahasa Indonesia Markdown (v1.2.4)
-- [`sentrix-whitepaper-id.html`](sentrix-whitepaper-id.html) — Bahasa Indonesia HTML (v1.2.4)
+- [`sentrix-whitepaper-id.tex`](sentrix-whitepaper-id.tex) — Bahasa Indonesia LaTeX source (v1.3.0)
+- [`sentrix-whitepaper-id.pdf`](sentrix-whitepaper-id.pdf) — Bahasa Indonesia PDF (v1.3.0)
+- [`sentrix-whitepaper-id.md`](sentrix-whitepaper-id.md) — Bahasa Indonesia Markdown (v1.3.0)
+- [`sentrix-whitepaper-id.html`](sentrix-whitepaper-id.html) — Bahasa Indonesia HTML (v1.3.0)
 
 ## Building from source
 
@@ -79,8 +79,7 @@ Requires `texlive-latex-recommended`, `texlive-latex-extra`, `lmodern`, and (for
   - Round advancement is **timeout-only** (per the 2026-04-17 leapfrog-stall fix); no vote-
     triggered or `RoundStatus`-triggered cross-round catch-up.
 
-  The Bahasa Indonesia translation lags at v1.2.4. A v1.3.0 ID parallel pass is on the
-  operational backlog.
+  The Bahasa Indonesia translation tracks v1.3.0 in this release.
 
 - **v1.2.4** — Two corrections: reworked §7.2 validator-revenue formula (subsidy is split
   pro-rata across precommit signers, not paid to the proposer; only fees go to proposer).

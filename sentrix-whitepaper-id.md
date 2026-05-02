@@ -1,749 +1,1002 @@
 # Sentrix
 
-### Blockchain Layer-One untuk Ekonomi Riil
+### Blockchain Layer-1 — Spesifikasi Protokol
 
 **Penulis:** Satya Kwok &lt;satya@sentrixchain.com&gt;
 **Web:** sentrixchain.com
-**Versi:** 1.2.4 (final kecuali ada hard fork chain)
+**Versi:** 1.3.0 (menggantikan 1.2.4)
 
 ---
 
 ## Abstrak
 
-Kami memperkenalkan Sentrix, sebuah blockchain Layer-One yang dioptimalkan untuk penyelesaian aktivitas ekonomi dunia riil. Sentrix menggunakan seleksi validator delegated-proof-of-stake yang dipadukan dengan protokol persetujuan Byzantine Fault Tolerant tiga fase untuk menghasilkan blok dengan finalitas satu detik. Operasi protokol native—penerbitan token, staking, koordinasi validator—dieksekusi langsung terhadap state kanonis, sementara jalur eksekusi kedua menjalankan Ethereum Virtual Machine untuk programabilitas umum. Kebijakan moneter ditetapkan: pasokan maksimum 315 juta SRX, block reward satu SRX yang halving setiap kira-kira 126 juta blok (empat tahun pada blok satu detik), dan mekanisme fee yang menghancurkan 50% setiap fee transaksi selamanya. Chain ini dirancang sebagai infrastruktur keuangan tahan lama untuk aktivitas ekonomi dunia riil, dimulai di Indonesia dan berkembang ke luar. Makalah ini menentukan rasional desain, arsitektur, siklus hidup transaksi, properti keamanan konsensus, mekanisme moneter, dan model ancaman.
+Dokumen ini menentukan *Sentrix*, sebuah blockchain Layer-1 yang memadukan protokol konsensus Byzantine Fault Tolerant (BFT) ala Tendermint dengan seleksi validator delegated-proof-of-stake, lapisan eksekusi dual-rail deterministik (rel operasi protokol native dan rel Ethereum Virtual Machine yang berjalan di atas `revm`), dan komitmen state berupa binary sparse Merkle tree. Kami memberikan model sistem formal, struktur pesan dan logika ronde protokol konsensus dengan kondisi safety/liveness, pipeline eksekusi termasuk desain forward-looking parallel-execution, model performa dengan ekspresi closed-form untuk throughput dan latency, model adversarial dengan batas keamanan kuantitatif, dan protokol penanganan kegagalan eksplisit untuk empat kelas fault yang telah ditemui oleh deployment produksi. Paper ini ditujukan sebagai spesifikasi yang dapat diaudit oleh engineer, bukan dokumen pemasaran.
 
----
-
-## Pernyataan Fokus
-
-Sentrix adalah infrastruktur keuangan untuk ekonomi riil. Setiap pilihan desain dalam paper ini—finalitas sub-detik, primitif pembayaran native, kompatibilitas EVM, pasokan capped halving deflasioner, validator set terbuka tanpa izin—melayani satu tujuan: membuat pembayaran, tabungan, transfer aset, dan penyelesaian kontrak bekerja untuk bisnis dan rumah tangga riil, dimulai dari Indonesia.
-
-Sentrix bukan tempat spekulasi. Bukan chain DeFi-first. Bukan kerangka rollup. Bukan substrat high-frequency-trading. Sentrix adalah rel penyelesaian untuk aktivitas ekonomi yang sudah ada di dunia fisik—remitansi, pembayaran retail, invoicing pemasok, tabungan koperasi, tokenisasi aset dunia riil, perdagangan lintas-negara—dan yang selama ini dilayani dengan buruk baik oleh sistem perbankan lama maupun oleh chain publik berorientasi spekulasi sebelumnya.
-
-Konstanta ekonomi chain (cap 315 juta, halving empat tahun, burn fee 50%, alokasi genesis) tidak dapat diatur governance: tidak ada proposal, tidak ada fork, tidak ada upgrade yang dapat mengubahnya. Mereka adalah kontrak ekonomi fundamental antara protokol dan penggunanya, dan stabil selama chain beroperasi.
+Chain ini berjalan di produksi pada chain ID `7119` (mainnet) dan `7120` (testnet) di bawah implementasi Rust open-source di `github.com/sentrix-labs/sentrix`. Konstanta ekonomi — pasokan maksimum 315M SRX, block reward awal 1 SRX yang halving setiap 126M blok, 50% dari setiap fee transaksi dibakar — dikodifikasi pada level protokol dan tidak dapat diubah governance.
 
 ---
 
 ## 1. Pendahuluan
 
-Sebagian besar blockchain publik dirancang untuk hal lain selain melayani aktivitas ekonomi riil. Bitcoin dirancang sebagai sistem kas elektronik peer-to-peer [1], namun pada praktiknya beroperasi terutama sebagai lapisan penyelesaian untuk penyimpanan nilai. Ethereum dirancang sebagai komputer dunia [2], namun ekonomi on-chain-nya didominasi oleh spekulasi finansial, perdagangan on-chain, dan aset sintetis. Solusi penskalaan Layer-Two mewarisi orientasi ini dan memperbesarnya.
+### 1.1 Cakupan
 
-Disconnect antara infrastruktur blockchain dan aktivitas ekonomi riil mayoritas populasi dunia sangat mencolok. Sebagian besar perdagangan manusia masih didenominasi dalam mata uang lokal, diselesaikan melalui jalur perbankan yang tidak mengalami perbaikan substansial selama puluhan tahun, dan secara efektif terkucil dari partisipasi blockchain publik. Friksi ini bukan filosofis—bisnis riil, koperasi riil, pedagang lintas-negara riil menginginkan penyelesaian yang cepat dan final—melainkan arsitektural. Infrastruktur yang mereka butuhkan bukan infrastruktur yang sudah dibangun.
+Dokumen ini menentukan protokol Sentrix pada level yang cukup bagi seorang engineer untuk (a) mengimplementasikan node yang conforming, (b) mengaudit divergensi antara dua implementasi, atau (c) bernalar tentang perilaku chain di bawah kondisi adversarial atau partial-failure. Ini bukan pengantar terhadap sistem terdistribusi atau primitif blockchain; familiaritas dengan state-machine replication, konsensus Byzantine, dan model eksekusi Ethereum diasumsikan.
 
-Sentrix adalah respons terhadap kesenjangan arsitektural ini. Sentrix adalah blockchain yang setiap pilihan desainnya memprioritaskan penyelesaian ekonomi riil di atas spekulasi perdagangan. Di mana chain serbaguna mengutamakan fleksibilitas maksimum dengan biaya efisiensi, Sentrix menaikkan primitif ekonomi yang paling umum menjadi operasi protokol native, menghilangkan seluruh kelas overhead. Di mana sebagian besar chain mentolerir waktu blok sepuluh atau tiga puluh detik, Sentrix menargetkan finalitas satu detik—cukup untuk interaksi tingkat retail. Di mana banyak chain mengikuti model token inflasioner, Sentrix dibatasi keras, halving, dan deflasioner—setiap fee dibakar sebagiannya selamanya, sehingga pasokan beredar menyusut seiring pertumbuhan aktivitas.
+Konstanta, fork height, parameter slashing, dan alamat routing yang dikutip di seluruh dokumen ini dipinned ke implementasi Rust di workspace `github.com/sentrix-labs/sentrix` per release `v2.1.56`. Di mana implementasi memiliki nilai parametrik yang dikonfigurasi pada genesis atau melalui environment variable, dokumen menandai nilai tersebut sebagai *parametrik* dan menunjuk modul yang relevan.
 
-Sentrix dibangun pertama-tama untuk Indonesia, di mana populasi, proporsi unbanked, dan volume remitansi membentuk demand yang besar dan belum terpenuhi.
+### 1.2 Tujuan Desain
 
----
+Protokol memprioritaskan, secara berurutan:
 
-## 2. Visi, Misi, dan Alasan Keberadaan
+1. **Kesepakatan state deterministik** — setiap node jujur yang mengeksekusi blok yang sama terhadap state sebelumnya yang sama menghasilkan hasil yang bit-identik.
+2. **Finalitas single-block** — setelah sebuah blok di-commit, tidak ada fork yang dapat menggantikannya tanpa melanggar threshold safety BFT.
+3. **Kompatibilitas EVM** — kontrak Solidity dan tooling Ethereum standar bekerja tanpa modifikasi.
+4. **Target waktu blok satu detik** — pada struktur ronde BFT yang dideskripsikan di §4 dan di bawah asumsi jaringan §2.2.
+5. **Kesederhanaan operator** — chain ini ship sebagai single Rust binary; operator menjalankan satu proses dan mengelola satu key-value store lokal.
+6. **Kebijakan moneter yang dapat diprediksi** — pasokan, cadensi halving, rasio fee burn, dan alokasi genesis tidak dapat diatur governance.
 
-### 2.1 Visi
+### 1.3 Non-Tujuan
 
-Masa depan di mana aktivitas ekonomi dunia riil—pembayaran lintas-negara, lending berbasis aset, perdagangan retail, tabungan koperasi, penyelesaian rantai pasok, verifikasi identitas—berjalan di atas rel yang transparan, berbiaya rendah, dapat diprogram, tidak dimiliki oleh korporasi tunggal, dapat diakses dari koneksi internet mana pun, dan secepat gesekan kartu kredit.
+Protokol secara eksplisit tidak menargetkan:
 
-Kami tidak percaya visi ini dapat dicapai melalui retrofit sistem perbankan lama. Kami tidak percaya itu dapat dicapai pada blockchain yang dirancang untuk spekulasi perdagangan. Itu dapat dicapai melalui infrastruktur khusus yang memperlakukan penyelesaian ekonomi riil sebagai concern kelas pertama, bukan afterthought.
-
-Sentrix adalah satu implementasi dari infrastruktur tersebut.
-
-### 2.2 Misi
-
-Membangun lapisan penyelesaian yang paling andal, biaya rendah, dan mudah diakses untuk aktivitas ekonomi dunia riil, dimulai dari geografi dan kasus penggunaan yang gagal dilayani oleh infrastruktur lama.
-
-Secara konkret, ini berarti:
-
-- Penyelesaian final satu detik untuk transfer, swap, atau pemanggilan kontrak apa pun.
-- Biaya transaksi diukur dalam pecahan sen, terlepas dari ukuran transfer.
-- Dukungan protokol native untuk penerbitan token, staking, dan manajemen aset tanpa memerlukan deploy smart contract.
-- Kompatibilitas dengan toolchain developer Ethereum global sehingga aplikasi yang sudah ada dapat diport tanpa modifikasi.
-- Codebase terbuka, operasi transparan, kebijakan moneter deterministik.
-- Orientasi pintu masuk pasar terhadap Indonesia dan Asia Tenggara, di mana demand yang belum terpenuhi paling besar.
-
-### 2.3 Mengapa Sentrix Ada
-
-Masalah infrastruktur yang kami atasi memiliki empat dimensi:
-
-**Latensi.** Rel pembayaran yang ada menyelesaikan dalam hitungan hari (correspondent banking), jam (jaringan kartu), atau puluhan detik (blockchain yang dioptimalkan untuk keamanan atau perdagangan). Perdagangan riil menuntut konfirmasi sub-detik untuk point-of-sale, retail, dan operasi bisnis rutin.
-
-**Biaya.** Fee remitansi lintas-negara 5–10% masih umum. Interchange fee jaringan kartu 1–3% mengekstrak nilai pada setiap transaksi retail. Biaya gas smart-contract pada chain serbaguna rutin melebihi nilai yang ditransfer untuk pembayaran kecil. Operasi native Sentrix menargetkan biaya yang diukur dalam pecahan sen US terlepas dari nilai aset yang mendasarinya.
-
-**Programabilitas tanpa overhead.** Blockchain telah mendemonstrasikan bahwa transaksi yang dapat diprogram memungkinkan konstruksi ekonomi baru yang kuat—lending, escrow, automated market making, verifikasi identitas. Tetapi operasi rutin seperti mentransfer token, mengklaim reward staking, atau mendaftarkan validator seharusnya tidak memerlukan deploy kode smart-contract yang diaudit. Mereka harus menjadi bagian dari protokol.
-
-**Inklusi.** Infrastruktur perbankan berkorelasi dengan kekayaan nasional. Infrastruktur blockchain publik secara prinsip dapat memutus korelasi tersebut, tetapi pada praktiknya telah mereproduksinya: sebagian besar aktivitas on-chain berasal dari sekumpulan kecil yurisdiksi berpendapatan tinggi. Sentrix diposisikan untuk membalik default ini dengan membangun pertama-tama untuk geografi yang paling tidak dilayani oleh sistem lama.
-
-### 2.4 Mengapa Sekarang
-
-Tiga prasyarat telah konvergen yang membuat pekerjaan ini feasible.
-
-Pertama, **EVM telah matang menjadi standar.** Tooling, dompet, library smart-contract, konvensi audit keamanan, dan model mental developer telah konvergen. Chain baru yang mengadopsi kompatibilitas EVM mewarisi seluruh ekosistem dengan biaya nol.
-
-Kedua, **konsensus Byzantine Fault Tolerant telah diproduksikan.** BFT ala Tendermint telah menjalankan mainnet yang andal selama bertahun-tahun. Bagian sulit dari konsensus sekarang sudah well-trodden, dan chain baru dapat membangun di atas implementasi open-source yang robust.
-
-Ketiga, **Rust telah matang menjadi bahasa sistem yang viable untuk implementasi blockchain.** Jaminan memory safety, runtime async yang matang, library kriptografis yang berperforma, dan budaya efisiensi zero-copy membuat pengembangan chain solo atau tim kecil feasible dengan cara yang tidak feasible satu dekade lalu.
-
-Chain yang menggabungkan ketiganya—kompatibilitas EVM, konsensus BFT, dan implementasi Rust—dan menerapkannya ke kasus penggunaan ekonomi riil secara teknis feasible hari ini dengan cara yang tidak feasible lima tahun lalu.
-
-### 2.5 Mengapa Indonesia Pertama
-
-Indonesia adalah negara terpadat keempat di dunia dan ekonomi terbesar di Asia Tenggara. Indonesia memiliki:
-
-- Populasi muda dan mobile-first dengan penetrasi smartphone tinggi.
-- Populasi unbanked atau underbanked yang besar (~40% menurut beberapa estimasi).
-- Struktur ekonomi informal yang kuat (perbankan koperasi, lending komunitas, microfinance) yang memetakan secara alami ke penyelesaian blockchain.
-- Aliran remitansi yang berkembang pada skala puluhan miliar dolar per tahun.
-- Lingkungan regulasi yang, walaupun masih matang, telah menunjukkan kesediaan untuk berhubungan dengan crypto dan blockchain.
-- Komunitas developer crypto-aware lokal yang berarti.
-
-Kombinasi demand yang besar dan belum terpenuhi, kesiapan teknologi, dan kecocokan budaya menjadikan Indonesia titik awal yang alami. Setelah lapisan penyelesaian tahan lama dan berguna di pasar ini, ekspansi ke pasar yang sebanding di Asia Tenggara dan seterusnya menjadi straightforward.
-
-Ini bukan framing "emerging markets". Ini framing pasar spesifik. Sentrix dibangun untuk melayani sekumpulan pengguna tertentu dengan kebutuhan tertentu, dan dirancang untuk berkembang ke luar dari sana.
+- **Throughput maksimum apa pun harganya.** Batas throughput (§10) adalah trade-off terhadap finalitas single-block dan kebutuhan validator-set kecil.
+- **Privasi on-chain.** Setiap transaksi, saldo, dan call dapat diobservasi publik. Privasi didelegasikan ke lapisan aplikasi.
+- **Sharding.** State dan eksekusi tidak di-shard. Bagian 10 menurunkan batas skalabilitas yang konsekuensinya.
+- **Eksekusi multi-VM polyglot.** Protokol secara native mendukung EVM dan rel native dengan ABI tetap; plug-in VM arbitrer berada di luar cakupan.
 
 ---
 
-## 3. Prinsip Desain
+## 2. Model Sistem
 
-Enam prinsip membentuk setiap keputusan arsitektural di Sentrix:
+### 2.1 Notasi
 
-**1. Penyelesaian di atas spekulasi.** Blockchain yang dioptimalkan untuk perdagangan menciptakan struktur insentif yang menghasilkan perdagangan. Blockchain yang dioptimalkan untuk penyelesaian menghasilkan perdagangan ekonomi riil. Kami memilih yang kedua di setiap percabangan.
+Sepanjang dokumen, kami menggunakan simbol berikut:
 
-**2. Primitif native di atas overhead kontrak.** Operasi yang akan dilakukan oleh hampir setiap pengguna—memegang token, staking, mengklaim reward, memindahkan aset—seharusnya tidak memerlukan deploy atau interaksi dengan smart contract. Mereka adalah bagian dari protokol.
+| Simbol | Makna |
+|---|---|
+| `n` | Jumlah validator aktif pada epoch saat ini |
+| `f` | Jumlah maksimum validator Byzantine yang ditoleransi, `f = ⌊(n − 1) / 3⌋` |
+| `Q` | Quorum supermayoritas BFT, `Q = ⌊2n/3⌋ + 1`. Untuk `n = 4`, `Q = 3`. Untuk `n = 21`, `Q = 15`. |
+| `S` | State chain kanonis, `S ∈ 𝒮` |
+| `S₀` | State genesis |
+| `B` | Blok, `B = (header, txs)` |
+| `H(B)` | Hash kriptografis dari encoding kanonis `B` |
+| `STF` | State transition function, `STF: 𝒮 × ℬ → 𝒮 ∪ {⊥}` |
+| `h` | Block height, monotonically increasing |
+| `r` | Ronde BFT pada height tertentu, `r ∈ {0, 1, …, MAX_ROUND}` |
+| `Δ` | Batas atas message delay setelah global stabilisation time (GST) |
+| `Vₐ` | Set validator aktif untuk epoch saat ini, `|Vₐ| = n ≤ MAX_ACTIVE_VALIDATORS` |
+| `s(v)` | Stake-weight dari validator `v ∈ Vₐ` |
 
-**3. Kompatibilitas EVM untuk kasus umum.** Di mana programabilitas dibutuhkan, EVM melayaninya dengan baik—standar yang berkembang dengan dukungan tooling yang luas. Sentrix menjalankan EVM dengan setia, berdampingan dengan operasi native-nya.
+`SRX` adalah aset chain native; `1 SRX = 10⁸ sentri` (unit terkecil yang tidak dapat dibagi). Semua jumlah token dalam dokumen ini diekspresikan dalam sentri kecuali dinyatakan lain secara eksplisit.
 
-**4. Kebijakan moneter deflasioner.** Token inflasioner memberi imbalan kepada holder awal dengan biaya holder berikutnya. Sentrix dibatasi pasokan, halving sesuai jadwal yang sama dengan Bitcoin, dan membakar separuh dari setiap fee. Seiring pertumbuhan aktivitas, pasokan menyusut.
+### 2.2 Model Jaringan
 
-**5. Keamanan kripto-ekonomi melalui staking.** Desentralisasi adalah properti dari siapa yang dapat melakukan staking, bukan siapa yang saat ini melakukannya. Validator set Sentrix terbuka, tanpa izin, dan diamankan secara ekonomi oleh stake yang dipertaruhkan.
+Kami mengasumsikan **partial synchrony** dalam pengertian Dwork–Lynch–Stockmeyer [15]: terdapat waktu `GST` (Global Stabilisation Time) yang tidak diketahui namun finite, di mana setelahnya semua pesan antar partisipan jujur tersampaikan dalam delay terbatas `Δ`. Sebelum `GST`, pesan dapat di-delay secara arbitrer, di-reorder, atau di-drop. Protokol harus tetap *safe* di bawah asynchrony arbitrer dan menjadi *live* setelah partial synchrony berlaku.
 
-**6. Riil di atas nominal.** Aset dunia riil, bisnis riil, aktivitas ekonomi riil. Sentrix menghindari abstraksi on-chain yang nilainya hanya berasal dari abstraksi on-chain lainnya. Chain melayani dunia; dunia tidak melayani chain.
+Komunikasi inter-validator berlangsung di atas mesh libp2p [11] (§7) dengan tiga kelas pesan (block gossip, transaction gossip, pesan BFT). Pesan diautentikasi oleh signature validator. Protokol tidak mengasumsikan delivery FIFO atau transport reliable; lapisan aplikasi bertanggung jawab untuk retransmission dan deduplication.
+
+### 2.3 Model Adversarial
+
+Kami mengadopsi model adversarial BFT standar:
+
+- **Validator jujur** mengikuti protokol secara persis.
+- **Validator Byzantine** dapat menyimpang secara arbitrer — termasuk menandatangani pesan yang konflik, menahan pesan, melakukan ekuivokasi pada proposal, atau berkoordinasi dengan validator Byzantine lainnya.
+- Adversary mengontrol fraksi `β` dari active set yang dibobotkan stake, `β ∈ [0, 1]`.
+
+Protokol menjamin safety asalkan `β < 1/3` (yakni kurang dari `n/3` validator menurut stake adalah Byzantine). Protokol menjamin liveness di bawah asumsi tambahan partial synchrony (§2.2) ketika `β < 1/3`.
+
+Adversary terbatas secara komputasional; secara spesifik, adversary tidak dapat memalsukan signature ECDSA, menemukan tabrakan SHA-256, atau memecahkan asumsi discrete-log dari grup secp256k1.
+
+### 2.4 State Machine Replication
+
+Sentrix adalah instance state machine replication. Setiap validator memelihara replika identik dari `S`. Klien submit transaksi; konsensus mengurutkannya ke dalam blok; setiap replika menerapkan blok melalui `STF` dalam urutan yang sama, menurunkan state penerus yang sama.
+
+Secara formal:
+
+> **(SMR Property)** Untuk setiap validator jujur `v` dan setiap height `h`, setelah `v` menerapkan semua blok `B₁, …, Bₕ`, state `Sₕ` yang dihasilkan tidak bergantung pada `v`. Yakni, `∀ v, v′ jujur: Sₕ(v) = Sₕ(v′)`.
+
+Properti SMR dicapai melalui (a) protokol konsensus yang menyepakati satu blok per height (§4 safety) dan (b) determinisme dari `STF` (§5.2).
 
 ---
 
-## 4. Arsitektur
+## 3. Arsitektur
 
-Sentrix terstruktur sebagai empat subsistem terintegrasi yang beroperasi pada satu state kanonis tunggal.
+Node adalah single Rust binary yang terdiri dari subsistem-subsistem yang berbagi state kanonis `S`:
 
-```
-Gambar 1 — Arsitektur sistem
+```mermaid
+graph TB
+    subgraph Node["Sentrix Node — single binary"]
+        RPC["sentrix-rpc<br/>JSON-RPC + REST + WS<br/>eth_subscribe channels"]
+        Mempool["sentrix-core::mempool<br/>FIFO + nonce-gap<br/>cap 10,000 / 100 per sender"]
+        BFT["sentrix-bft<br/>3-phase round engine<br/>Propose / Prevote / Precommit / Finalize"]
+        Net["sentrix-network<br/>libp2p gossipsub + Kademlia"]
+        Exec["sentrix-core::block_executor<br/>STF dispatcher"]
+        Native["Native rail<br/>TokenOp + StakingOp + System"]
+        EVM["sentrix-evm<br/>revm 37 adapter"]
+        Trie["sentrix-trie<br/>Binary Sparse Merkle Tree (256-level)"]
+        Storage["sentrix-storage<br/>MDBX KV"]
+        DB[("chain.db")]
+        Wallet["sentrix-wallet<br/>Argon2id keystore"]
+        Stake["sentrix-staking<br/>StakeRegistry + slashing"]
+    end
 
-  ┌──────────────────────────────────────────────────────────┐
-  │                       SENTRIX NODE                        │
-  │                                                           │
-  │   ┌─────────────────────┐    ┌─────────────────────┐      │
-  │   │   Native Rail       │    │   EVM Rail (revm)   │      │
-  │   │   • SRC-20 ops      │    │   • Smart contracts │      │
-  │   │   • Staking ops     │    │   • Tooling standar │      │
-  │   │   • Validator ops   │    │   • EIP-1559 fees   │      │
-  │   └──────────┬──────────┘    └──────────┬──────────┘      │
-  │              │                          │                 │
-  │   ┌──────────┴──────────────────────────┴──────────┐      │
-  │   │   Block Executor (apply-pass dispatcher)        │      │
-  │   └─────────────────────┬─────────────────────────┐ │      │
-  │                         │                         │ │      │
-  │   ┌─────────────────────┴────────┐ ┌──────────────┴─┴────┐ │
-  │   │   State Trie (binary SMT)    │ │   MDBX KV Storage   │ │
-  │   │   account / storage / code   │ │   chain.db          │ │
-  │   └──────────────────────────────┘ └─────────────────────┘ │
-  │                                                           │
-  │   ┌─────────────────────┐    ┌─────────────────────┐      │
-  │   │   BFT Engine        │    │   libp2p Network    │      │
-  │   │   3-phase rounds    │    │   gossip + sync     │      │
-  │   └─────────────────────┘    └─────────────────────┘      │
-  └──────────────────────────────────────────────────────────┘
-```
-
-### 4.1 Lapisan Konsensus
-
-Sentrix menggunakan model seleksi delegated-proof-of-stake yang dipadukan dengan protokol persetujuan Byzantine Fault Tolerant tiga fase [3].
-
-#### 4.1.1 Seleksi Validator
-
-Validator set dipilih oleh delegasi yang dibobotkan stake. Pemegang token mana pun dapat mendelegasikan kepada kandidat validator mana pun; ranking berbobot yang dihasilkan menentukan active set untuk setiap epoch. Keanggotaan active-set dikomputasi ulang pada batas epoch yang tetap, memungkinkan validator baru masuk dan validator yang berkinerja kurang keluar tanpa intervensi governance.
-
-Self-stake minimum untuk validator dilaksanakan pada level protokol. Stake yang didelegasikan diikat dengan periode unbonding: penarikan stake memulai timeout berdurasi tetap di mana stake tetap dapat di-slash tetapi tidak memenuhi syarat untuk reward baru. Ini mencegah validator mengoffload risiko segera sebelum berperilaku buruk.
-
-#### 4.1.2 Ronde Tiga Fase
-
-Dalam epoch, active set menjalankan ronde tiga fase ala Tendermint untuk memfinalisasi setiap blok. Sebuah ronde terdiri dari tiga jenis pesan dan tiga transisi fase yang sesuai:
-
-```
-Gambar 2 — Timing ronde BFT
-
-  Fase PROPOSE     Fase PREVOTE     Fase PRECOMMIT     COMMIT
-       │                 │                 │              │
-       ▼                 ▼                 ▼              ▼
-   t=0                t≈300ms           t≈600ms        t≈1s
-   ├─ proposer P     ├─ setiap         ├─ setiap       ├─ blok
-   │  untuk height H │  validator      │  validator    │  difinalisasi
-   │  mengusulkan B  │  prevote B      │  precommit B  │
-   │                 │  jika valid     │  jika 2/3+    │
-   │                 │                 │  lihat        │
-   │                 │                 │  prevote B    │
+    Client[Client / Wallet] -->|tx| RPC
+    RPC -->|admit| Mempool
+    Mempool -->|drain on propose| BFT
+    BFT <-->|gossip| Net
+    Net <-->|peers| Net
+    BFT -->|FinalizeBlock| Exec
+    Exec --> Native
+    Exec --> EVM
+    Native --> Trie
+    EVM --> Trie
+    Trie --> Storage
+    Storage --> DB
+    Stake -.read/write.-> Trie
+    Wallet -.signs.-> RPC
 ```
 
-Sebuah blok bersifat final ketika supermayoritas (≥⅔ dari active set yang dibobotkan stake) precommit blok yang sama dalam ronde yang sama. Justifikasi—kumpulan tanda tangan precommit—disertakan di blok berikutnya, memberikan bukti publik bahwa parent telah difinalisasi.
+**Gambar 1.** Arsitektur sistem. Block executor menerima aksi `FinalizeBlock` dari BFT engine setelah konsensus dan men-dispatch setiap transaksi melalui aturan routing di §5.5. Lapisan trie + storage di-share lintas rel; tidak ada execution database terpisah.
 
-#### 4.1.3 Aturan Locking dan Skip Ronde
+14 crate dari workspace (`crates/sentrix-{primitives,codec,wire,trie,storage,wallet,bft,staking,network,evm,precompiles,core,rpc-types,rpc}`) di-compile menjadi binary `sentrix` tunggal di `bin/sentrix`. Sebuah `bin/sentrix-faucet` terpisah ada untuk operasi testnet dan bukan bagian dari konsensus.
 
-Setelah validator prevote sebuah blok dalam ronde, ia mengunci pada blok tersebut. Dalam ronde-ronde berikutnya pada height yang sama, ia hanya akan prevote blok yang berbeda jika menerima "polka" (≥⅔ prevote untuk blok baru) pada ronde yang lebih tinggi. Properti locking inilah yang menjamin keamanan: dua blok yang konflik tidak dapat keduanya mengumpulkan precommit supermayoritas.
+---
 
-Jika ronde gagal difinalisasi dalam timeout (proposer offline, partisi jaringan, ketidakhadiran validator), protokol berlanjut ke ronde berikutnya. Proposer berotasi round-robin melalui active set. Setelah jumlah ronde gagal berurutan yang dapat dikonfigurasi, timeout ronde berlipat ganda, memberikan pemulihan weak-synchrony.
+## 4. Protokol Konsensus (Voyager BFT)
 
-#### 4.1.4 Keamanan dan Liveness
+Konsensus Sentrix adalah turunan Tendermint yang kami sebut *Voyager*. Bagian ini menentukan struktur ronde, tipe pesan, aturan locking, dan kondisi safety/liveness.
 
-Di bawah asumsi BFT standar bahwa kurang dari sepertiga validator aktif berbobot stake bersifat Byzantine, dua teorema keamanan berlaku:
+### 4.1 Seleksi Validator (DPoS)
 
-- **Agreement:** Tidak ada dua validator jujur yang memfinalisasi blok berbeda pada height yang sama.
-- **Validity:** Sebuah blok yang difinalisasi adalah well-formed dan apply secara bersih.
+Set validator aktif `Vₐ` untuk sebuah epoch dipilih melalui ranking yang dibobotkan stake. Setiap akun yang telah mengeksekusi `RegisterValidator` dan mengikat self-stake minimum yang dikonfigurasi genesis adalah seorang *kandidat*. Pemegang token dapat mendelegasikan stake ke kandidat melalui operasi `Delegate`. Active set untuk epoch `e + 1` adalah top-`MAX_ACTIVE_VALIDATORS = 21` kandidat yang di-rank oleh `total_stake = self_stake + total_delegated`, dikomputasi secara deterministik pada blok batas `h = e × EPOCH_LENGTH` di mana `EPOCH_LENGTH = 28_800` blok (~8 jam pada blok 1 detik).
 
-Liveness berlaku di bawah asumsi weak-synchrony: pesan antara validator jujur akhirnya tersampaikan, mungkin dengan delay terbatas. Di bawah asumsi ini, protokol menjamin bahwa progress akhirnya terjadi.
+Penarikan stake memulai *periode unbonding* selama `UNBONDING_PERIOD = 201_600` blok, di mana stake tetap dapat di-slash namun tidak menghasilkan reward. Ini mencegah validator Byzantine meng-offload stake yang dapat di-slash segera sebelum melakukan ekuivokasi.
 
-Jika asumsi dilanggar (≥⅓ kekuatan Byzantine), keamanan tidak lagi dijamin dan chain mungkin fork. Pemulihan dalam kasus ini memerlukan mekanisme koordinasi sosial—mengidentifikasi chain kanonis melalui sinyal kepercayaan eksternal—seperti dalam sistem BFT mana pun.
+`AddSelfStake` (di-gate oleh `ADD_SELF_STAKE_HEIGHT`, diaktifkan 2026-04-28) memungkinkan validator yang teregister meningkatkan self-stake-nya dari dompetnya sendiri tanpa register ulang, digunakan dalam alur unjail dan top-up stake.
 
-### 4.2 Lapisan Eksekusi
+### 4.2 Struktur Ronde
 
-Dua jalur eksekusi beroperasi pada state kanonis yang sama.
+Sebuah *height* `h` difinalisasi melalui satu atau lebih *ronde* `r ∈ {0, 1, …, MAX_ROUND}` di mana `MAX_ROUND = 100`. Setiap ronde terdiri dari tiga fase — `PROPOSE`, `PREVOTE`, `PRECOMMIT` — diikuti oleh fase `FINALIZE` jika quorum tercapai. Keempat fase di-encode dalam `BftPhase = {Propose, Prevote, Precommit, Finalize}`.
 
-**Ethereum Virtual Machine.** Sentrix menjalankan EVM melalui implementasi Rust berperforma tinggi [4]. Kontrak Ethereum standar (ERC-20, ERC-721, pool ala Uniswap, protokol lending) dapat di-deploy tanpa modifikasi. Tooling standar—Foundry, Hardhat, MetaMask, ethers, dan viem—bekerja langsung. Akuntansi gas mengikuti model EIP-1559: base fee per blok yang menyesuaikan dengan permintaan, plus tip yang ditetapkan pengirim untuk membayar proposer untuk inklusi.
+Untuk ronde `(h, r)`, *proposer* dipilih melalui
 
-**Operasi protokol native.** Penerbitan token (`SRC-20`), staking (delegate, undelegate, claim rewards), dan koordinasi validator bukan smart contract melainkan transaksi yang ditafsirkan langsung oleh protokol. Mereka memakan gas lebih sedikit daripada operasi setara berbasis kontrak karena melewati EVM sepenuhnya. Mereka tidak dapat dieksploitasi melalui kode yang belum diaudit karena perilakunya ditetapkan pada level protokol.
+$$
+\text{propose}(h, r) = V_a[(h + r) \bmod n]
+$$
 
-Kedua jalur saling beroperasi. Pengguna yang memegang token native SRC-20 dapat berinteraksi dengan kontrak EVM yang membaca saldo tersebut melalui precompile query saldo kanonis. Kontrak EVM dapat mengotorisasi operasi native melalui gateway system-call. State kanonis chain adalah penggabungan tunggal dari state EVM dan ledger native.
+Round-robin atas active set; stake-weight tidak memengaruhi seleksi proposer dalam sebuah epoch (nama fungsi `weighted_proposer` di `crates/sentrix-staking/src/staking.rs` adalah peninggalan historis).
 
-### 4.3 Lapisan State
+Tiga tipe pesan beredar:
 
-Sentrix memelihara binary sparse Merkle tree sebagai representasi state kanonis [9]. State root dicap ke setiap blok setelah ketinggian aktivasi yang ditentukan, memberikan jaminan kriptografis bahwa setiap node yang menerapkan blok yang sama mencapai state yang sama. State root yang berbeda menghasilkan hash blok yang berbeda, dan BFT memastikan chain konvergen pada satu sejarah kanonis.
+| Tipe | Field yang dibawa | Peran |
+|---|---|---|
+| `Proposal(h, r, B)` | `height, round, block_hash, sig` | Klaim proposer bahwa `B` adalah blok berikutnya pada `(h, r)` |
+| `Prevote(h, r, x)` | `height, round, x ∈ {block_hash, ⊥}, sig` | Vote validator |
+| `Precommit(h, r, x)` | `height, round, x ∈ {block_hash, ⊥}, sig` | Komitmen validator |
 
-State dipersistensikan di MDBX [10], embedded key-value store yang dioptimalkan untuk pembacaan acak throughput tinggi. State penuh bersifat lokal di setiap full node; light client dapat memverifikasi terhadap trie root dengan bukti Merkle logaritmik.
+Sebuah signature adalah signature ECDSA recoverable secp256k1 65-byte (compact `(r, s)` 64-byte plus satu byte `recovery_id`), dikomputasi atas SHA-256 dari payload signing kanonis yang berisi prefix domain-separation (`0x01` proposal, `0x02` prevote, `0x03` precommit). Signature proposer pada `Proposal` juga mencakup isi `B`. Pesan tingkat wire dibungkus di `BftMessage = {Propose(Proposal), Prevote(Prevote), Precommit(Precommit), RoundStatus(RoundStatus)}` untuk transport.
 
-#### 4.3.1 Fungsi Transisi State
+#### 4.2.1 PROPOSE
 
-Sebuah blok Sentrix menerapkan urutan transaksi ke state sebelumnya untuk menghasilkan state baru. Secara formal, fungsi transisi state `APPLY(S, B)` mengambil state `S` dan blok `B = (header, txs)` dan menghasilkan state baru `S′` atau `INVALID`:
-
-```
-APPLY(S, B):
-  1. Verifikasi header B (parent hash, timestamp, signature proposer).
-  2. Untuk setiap transaksi TX dalam B.txs, secara berurutan:
-       a. Verifikasi signature TX terhadap TX.from.
-       b. Verifikasi TX.nonce == S[TX.from].nonce.
-       c. Verifikasi TX.fee >= MIN_TX_FEE.
-       d. Jika S[TX.from].balance < TX.fee + TX.amount: skip (insufficient).
-       e. Kurangi TX.fee dari TX.from.
-       f. Bakar 50% dari TX.fee ke BURN_ADDRESS; kreditkan 50% sisanya
-          langsung ke saldo proposer blok. (Block subsidy mengikuti
-          jalur terpisah: di-mint ke PROTOCOL_TREASURY pada akhir blok
-          dan diakumulasikan pro-rata ke precommit signer.)
-       g. Dispatch TX berdasarkan to_address:
-          - 0x0000…0000  → operasi token native (decode data sebagai JSON).
-          - 0x0000…0100  → operasi staking native (decode data sebagai JSON).
-          - 0x0000…0002  → jalur sistem / claim (mis. ClaimRewards).
-          - lainnya       → dispatch EVM via revm; data adalah payload
-                            call EVM; gas dihitung di dalam revm.
-       h. Jika apply berhasil: update accounts/registries, increment
-          nonce, emit events. Jika gagal: revert state changes dari TX ini
-          (fee debit + 50/50 burn-and-credit tetap berlaku).
-  3. Hitung state root baru dari trie yang diupdate.
-  4. Verifikasi state root baru cocok dengan B.header.state_root.
-  5. Return S′ jika semua check lolos; jika tidak, INVALID.
-```
-
-Fungsi ini deterministik: setiap node yang mengeksekusi `S` dan `B` yang sama menghasilkan `S′` yang bit-identik. Determinisme inilah yang memungkinkan node-node independen memverifikasi klaim satu sama lain tentang state chain.
-
-#### 4.3.2 Light Client
-
-Light client tidak menyimpan full state. Mereka melacak header blok dan memverifikasi fakta tertentu dengan meminta bukti Merkle dari full node. Diberikan header blok yang berisi state root kanonis, light client dapat memverifikasi setiap saldo akun, slot storage kontrak, atau inklusi transaksi menggunakan bukti berukuran logaritmik terhadap root. Ini membuat penggunaan dompet mobile, dApp browser, dan integrasi sumber daya terbatas praktis tanpa mengkompromikan keamanan: light client mempercayai bukti kriptografis terhadap state root yang telah secara independen diverifikasinya, bukan node yang merespons itu sendiri.
-
-### 4.4 Model Jaringan
-
-Node Sentrix berkomunikasi melalui mesh libp2p [11]. Protokol menggunakan tiga kelas pesan:
-
-- **Block gossip:** Blok yang baru difinalisasi merambat melalui gossipsub dengan topik `sentrix/blocks/1`. Penerima memverifikasi blok secara lokal dan menerapkannya ke state kanonis.
-- **Transaction gossip:** Transaksi yang dikirim pengguna merambat melalui topik `sentrix/txs/1` sampai validator memasukkannya ke blok yang diusulkan.
-- **Pesan BFT:** Proposal, prevote, dan precommit adalah request-response langsung antar validator pada topik `sentrix/bft/1`. Rebroadcast memperkuat pesan yang mungkin telah dijatuhkan.
-
-Penemuan peer menggunakan Kademlia DHT [12] dengan alamat seed peer untuk bootstrap. Setiap node juga mempublikasikan record "validator advertisement" yang berisi multiaddr libp2p saat ini, memungkinkan validator lain mempertahankan koneksi langsung tanpa koordinasi eksternal.
-
-Sebuah node yang bergabung dengan jaringan bootstrap sebagai berikut:
+Proposer untuk `(h, r)` mengkonstruksi blok kandidat `B`:
 
 ```
-1. Connect ke satu atau lebih seed peer (dikonfigurasi saat startup).
-2. Run Kademlia DHT walk untuk mengisi tabel routing peer.
-3. Request chain head dari peer; identifikasi chain stake-weighted terpanjang.
-4. Sync block-by-block dari peer sampai head saat ini tercapai.
-5. Subscribe ke gossip topics; mulai berpartisipasi dalam BFT jika validator.
-```
-
-Mode kegagalan jaringan di bawah partisi well-defined: partisi minoritas berhenti (tidak dapat mencapai supermayoritas); partisi mayoritas berlanjut dengan active set yang tereduksi. Setelah partisi sembuh, minoritas mendeteksi chain kanonis yang lebih panjang dan rejoin.
-
-### 4.5 Format Transaksi
-
-Sentrix menggunakan satu format wire transaksi kanonis untuk jalur native dan jalur EVM:
-
-```
-Transaction {
-    txid:         hex32,    // SHA-256 dari payload signing kanonis
-    from_address: address,  // hex 20-byte, berprefix "0x"
-    to_address:   address,  // penerima, atau sentinel untuk operasi protokol:
-                            //   0x0000…0000  → operasi token native (SRC-20/721/1155)
-                            //   0x0000…0100  → operasi staking native
-                            //   0x0000…0002  → PROTOCOL_TREASURY (claim/system)
-                            //   selain itu  → dispatch EVM (revm)
-    amount:       uint64,   // sentri  (1 SRX = 10⁸ sentri)
-    fee:          uint64,   // sentri  (≥ MIN_TX_FEE = 10.000)
-    nonce:        uint64,   // sequence akun pengirim
-    data:         string,   // kosong untuk transfer biasa;
-                            // JSON kanonis {"op":"...",...} untuk operasi native;
-                            // payload call EVM standar untuk dispatch EVM
-    timestamp:    uint64,   // unix detik (window anti-replay)
-    chain_id:     uint64,   // 7119 mainnet, 7120 testnet
-    signature:    hex,      // ECDSA secp256k1, 65 bytes (r, s, v)
-    public_key:   hex,      // secp256k1 uncompressed, 65 bytes
+B = {
+    header: {
+        index: h,
+        previous_hash: H(B_{h-1}),
+        timestamp: now(),
+        proposer: addr(propose(h, r)),
+        state_root: STF(S_{h-1}, B).root,    // STAGED — see §5
+        justification: J_{h-1},               // precommits proving B_{h-1} finalized
+        merkle_root: tx_merkle(B.txs),
+    },
+    txs: drain_mempool(MAX_TX_PER_BLOCK = 5_000)
 }
 ```
 
-Routing ditentukan oleh `to_address`: sekumpulan kecil alamat sentinel mendispatch ke jalur native (token, staking, treasury), dan alamat lainnya mendispatch ke revm dengan `data` sebagai payload call EVM. Ini menjaga format wire seragam — wallet, indexer, dan explorer dapat decode kedua jalur melalui satu skema. Pengguna EVM yang submit `eth_sendRawTransaction` melewati lapisan translation yang membungkus transaksi Ethereum standar ke dalam form Sentrix kanonis ini sebelum masuk mempool; gossip dan finalisasi identik dari sana.
+Proposer melakukan broadcast `Proposal(h, r, B)` ke seluruh `Vₐ`. Validator jujur menunggu paling lama `propose_timeout(r) = min(20_000 + r × 1_000, 30_000) ms` untuk proposal; pada timeout mereka memperlakukan proposal sebagai `⊥` dan lanjut ke `PREVOTE`.
 
-#### 4.5.1 Payload Signing
+Timeout ini adalah batas atas, bukan durasi fase. Pada happy path di mesh latency rendah, ketiga fase selesai jauh di bawah satu detik; chain memproduksi blok pada target `BLOCK_TIME_SECS = 1`. Timeout yang lebar ada untuk menyerap perbaikan peer-mesh setelah disconnect transien (lihat `crates/sentrix-bft/src/engine/timeouts.rs` untuk riwayat insiden).
 
-Signature commit ke serialisasi JSON kanonis dari delapan field konten transaksi: `amount`, `chain_id`, `data`, `fee`, `from`, `nonce`, `timestamp`, `to`. Key di-emit dalam urutan leksikografis dari sorted map, sehingga setiap node yang men-serialize transaksi yang sama menghasilkan byte string yang sama. Byte string di-hash dengan SHA-256, dan digest 32-byte yang dihasilkan ditandatangani dengan ECDSA secp256k1.
+#### 4.2.2 PREVOTE
 
-`chain_id` adalah bagian dari payload yang ditandatangani (replay-protected lintas jaringan), namun formatnya Sentrix-canonical, bukan EIP-155 RLP. Wallet yang mendukung Sentrix menandatangani payload kanonis ini langsung; jalur EVM-side `eth_sendRawTransaction` memverifikasi signature EIP-155 pada tx Ethereum yang dibungkus secara independen sebelum translation. Ukuran transaksi maksimum dikonfigurasi pada level protokol; transaksi yang ukurannya berlebihan ditolak oleh mempool.
+Setiap validator `v ∈ Vₐ` mengevaluasi proposal:
 
----
+- Jika `B` valid (signature, parent hash, signature transaksi, state root) dan `v` tidak terkunci pada blok berbeda di height ini, `v` melakukan broadcast `Prevote(h, r, H(B))`.
+- Jika tidak, `v` melakukan broadcast `Prevote(h, r, ⊥)`.
 
-## 5. Operasi Native
+Validator kemudian menunggu prevote dari validator yang membawa total stake ≥ `Q`. Jika `Q` validator menurut stake-weight melakukan prevote untuk `H(B)` yang sama (sebuah *polka*), `v` lanjut ke `PRECOMMIT` dengan `H(B)`. Jika tidak, `v` lanjut dengan `⊥`.
 
-Pilihan desain sentral di Sentrix adalah promosi primitif ekonomi umum dari smart contract menjadi operasi protokol.
+Timeout: `prevote_timeout(r) = min(12_000 + r × 2_000, 30_000) ms`.
 
-### 5.1 Pertanyaan Native vs Kontrak
+#### 4.2.3 PRECOMMIT
 
-Pola standar di chain EVM adalah mengimplementasikan semuanya—termasuk operasi yang paling umum seperti transfer token dan staking—sebagai smart contract. Abstraksinya seragam: semua operasi menelan gas, semua tunduk pada audit keamanan kontrak, semua dapat diprogram. Ini secara konseptual bersih namun mengeluarkan tiga biaya.
+Setiap validator melakukan broadcast `Precommit(h, r, x)`:
 
-Pertama, **overhead eksekusi**. Transfer token sederhana di ruang EVM memerlukan pemuatan bytecode kontrak, dispatch ke selektor fungsi, melakukan baca-tulis storage melalui namespace kontrak, dan emit event. Biaya minimum sekitar 21.000 gas plus eksekusi kontrak. Komputasi sebenarnya—pengurangan saldo pengirim, penambahan saldo penerima—adalah dua operasi storage.
+- `x = H(B)` jika `v` melihat polka untuk `H(B)` di fase prevote.
+- `x = ⊥` jika tidak.
 
-Kedua, **overhead keamanan**. Setiap primitif yang diimplementasikan kontrak harus diaudit secara independen. Kontrak token telah menghasilkan kerugian miliaran dolar melalui bug dalam kode yang sudah lama di-deploy. Operasi native adalah bagian dari konsensus chain, diaudit sekali, deterministik selamanya.
+Sebuah validator menunggu precommit yang membawa total stake ≥ `Q`. Jika `Q` precommit setuju pada `H(B)`, `B` *difinalisasi* di height `h`.
 
-Ketiga, **friksi upgradabilitas**. Primitif yang diimplementasikan kontrak sulit di-upgrade tanpa migrasi terkoordinasi. Primitif native berkembang melalui hard fork, di mana seluruh jaringan upgrade secara atomik.
+Timeout: `precommit_timeout(r) = min(12_000 + r × 2_000, 30_000) ms`.
 
-### 5.2 Set Operasi Native
+#### 4.2.4 FINALIZE
 
-Operasi native Sentrix mencakup:
+Set `Q` precommit merupakan *justifikasi* `Jₕ` untuk blok `B`. `Jₕ` disertakan di header blok berikutnya (`B_{h+1}.header.justification`), memberikan bukti publik finalisasi.
 
-- **Operasi Token `SRC-20`.** Menerbitkan token fungible, mentransfernya, menyetujui allowance. Diimplementasikan sebagai varian transaksi yang langsung diterapkan ke ledger native. State token tinggal di state trie kanonis bersama saldo akun.
+Setiap validator menerapkan `B` ke state lokalnya melalui `STF` (§5) dan melanjutkan ke ronde `0` dari height `h + 1`.
 
-- **Operasi Staking.** Delegate stake ke validator, undelegate (dengan periode unbonding), claim reward yang terakumulasi, register sebagai kandidat validator. Diterapkan langsung ke stake registry.
+### 4.3 Locking
 
-- **Transfer Native.** Kasus paling sederhana: memindahkan SRX antar akun. Memakan biaya minimum protokol (MIN_TX_FEE = 10.000 sentri = 0,0001 SRX). 50% dibakar, 50% ke proposer.
+Setelah validator melakukan prevote sebuah blok di ronde `r`, ia terkunci pada blok dan ronde tersebut (`locked_block` dan `locked_round` di-persist di `BftRoundState`). Pada ronde-ronde berikutnya di height yang sama, ia hanya akan melakukan prevote terhadap blok berbeda jika ia mengamati polka (≥ `Q` prevote untuk alternatif yang sama) di ronde *yang lebih tinggi*. Aturan inilah yang menjamin safety:
 
-- **Koordinasi Validator.** Aktivasi, deaktivasi, dan rotasi validator melalui seleksi berbobot stake. Tidak ada kontrak governance; protokol menerapkan rotasi setiap epoch.
+> **(Locking Invariant)** Sebuah validator jujur yang melakukan precommit `H(B)` di ronde `r` hanya melakukan precommit blok berbeda `H(B′)` di ronde `r′ > r` jika `≥ Q` prevote untuk `H(B′)` diamati di suatu ronde `r′′` dengan `r ≤ r′′ < r′`.
 
-Operasi-operasi ini tetap sepenuhnya dapat diprogram: kontrak EVM dapat memanggil mereka melalui gateway sistem, dan dompet mana pun yang mendukung Sentrix dapat mengeksekusinya melalui satu transaksi yang ditandatangani.
+Karena `≥ Q` validator jujur harus melepaskan kuncinya pada `H(B)` untuk melakukan prevote `H(B′)`, dan melepaskan kunci memerlukan pengamatan polka alternatif, tidak ada validator jujur yang melakukan precommit terhadap `H(B)` dan `H(B′)` sekaligus.
 
-### 5.3 Siklus Hidup Transaksi
+### 4.4 Round Skip
 
-Untuk membuat arsitektur konkret, pertimbangkan transfer SRC-20 native sebesar 100 token dari token `0xTOK` antara Alice ke Bob.
+Jika sebuah ronde gagal difinalisasi dalam timeout fase-nya plus `ε`, ronde berakhir dan ronde `r + 1` dimulai. Proposer berotasi ke `Vₐ[(h + r + 1) mod n]`.
 
-```
-Langkah 1 — Susun transaksi
-  Dompet Alice membangun:
-    from_address = 0xALICE...
-    to_address   = 0x0000000000000000000000000000000000000000   (sentinel token-op)
-    amount       = 0                                            (tidak ada SRX bergerak)
-    fee          = MIN_TX_FEE = 10.000 sentri  (= 0,0001 SRX)
-    nonce        = nonce Alice saat ini
-    data         = {"op":"transfer","contract":"0xTOK",
-                    "to":"0xBOB...","amount":100}              (JSON kanonis)
-    timestamp    = now()
-    chain_id     = 7119
-    signature    = secp256k1(SHA-256(canonical_json), alice_sk)
+Advancement ronde bersifat **timeout-only** (per fix `2026-04-17`, lihat doc `crates/sentrix-bft/src/lib.rs`): tidak ada catch-up yang dipicu vote atau `RoundStatus` yang mempromosikan validator melintas ronde. Ini menghindari stall *validator-leapfrog* di mana validator membersihkan vote yang dikumpulkan pada setiap lompatan ronde.
 
-Langkah 2 — Submit
-  Dompet mengirim ke endpoint RPC mana pun (sentrix_sendTransaction
-    atau eth_sendRawTransaction untuk jalur EVM).
-  RPC memvalidasi format, signature, dan saldo ≥ fee + amount.
-  Tx masuk mempool; gossip ke peer di sentrix/txs/1.
-
-Langkah 3 — Inklusi blok
-  Validator V (proposer untuk ronde berikutnya) menguras mempool.
-  V mengkonstruksi blok N+1 yang berisi tx Alice + lainnya.
-  V mengusulkan blok N+1 ke active set.
-
-Langkah 4 — Finalisasi BFT
-  Validator aktif menerima proposal, memverifikasinya.
-  Setiap validator prevote jika proposal valid.
-  Setelah ≥ 2/3 prevote teramati, validator precommit.
-  Setelah ≥ 2/3 precommit teramati, blok N+1 difinalisasi.
-
-Langkah 5 — Apply state
-  Setiap node menerapkan blok N+1:
-    a. Kurangi 10.000 sentri (fee) dari akun Alice.
-    b. Bakar 5.000 sentri ke BURN_ADDRESS (50% dari fee).
-    c. Kreditkan 5.000 sentri langsung ke saldo validator V
-       (pendapatan variabel proposer, langsung dapat dibelanjakan).
-    d. Kurangi saldo SRC-20 Alice untuk token 0xTOK sebesar 100.
-    e. Tambahkan saldo SRC-20 Bob untuk token 0xTOK sebesar 100.
-    f. Tambahkan nonce Alice.
-    g. Emit Transfer event.
-    h. Update state trie root; root baru di-commit di block hash.
-       (Terpisah, pada akhir blok, subsidy 1 SRX di-mint ke
-        PROTOCOL_TREASURY dan diakumulasikan pro-rata ke precommit
-        signer — mereka claim via ClaimRewards nanti.)
-
-Langkah 6 — Konfirmasi
-  Dompet Alice polling RPC; melihat tx di blok yang difinalisasi.
-  Dompet Bob (subscribe via WebSocket sentrix_tokenOps channel)
-    menerima notifikasi. Total waktu Langkah 2 → 6: ~1–2 detik.
-```
-
-Siklus ini identik secara prinsip untuk transfer SRX biasa (tanpa payload `data`), operasi staking (`to_address = 0x0000…0100`, JSON op di `data`), dan panggilan kontrak EVM (`to_address` = kontrak, `data` = payload call EVM). Perbedaannya adalah jalur apply mana yang diambil di langkah 5.
-
----
-
-## 6. Tokenomik
-
-Aset native Sentrix adalah SRX. Kebijakan moneternya tetap.
-
-### 6.1 Pasokan
-
-Pasokan maksimum adalah 315 juta SRX. Tidak ada mekanisme governance untuk mengubahnya. Setelah maksimum tercapai melalui block reward, tidak ada SRX baru yang dibuat.
-
-### 6.2 Block Reward dan Halving
-
-Block reward dasar adalah satu SRX. Reward terbagi separuh setiap kira-kira 126 juta blok (~empat tahun pada waktu blok satu detik), dimodelkan setelah cadensi halving Bitcoin.
-
-Jadwal halving (perkiraan, cadensi empat tahun):
-
-| Era | Tahun | Block reward | Total dikeluarkan |
-|-----|-------|--------------|-------------------|
-| 1   | 0–4   | 1,000 SRX    | 126 juta SRX      |
-| 2   | 4–8   | 0,500 SRX    | 189 juta SRX      |
-| 3   | 8–12  | 0,250 SRX    | 220,5 juta SRX    |
-| 4   | 12–16 | 0,125 SRX    | 236,25 juta SRX   |
-| 5   | 16–20 | 0,0625 SRX   | 244,13 juta SRX   |
-| ... | ...   | ...          | (asimtotik)       |
-
-Dikombinasikan dengan premine 63 juta (Bagian 6.4), pasokan maksimum mendekati 315 juta SRX dalam horizon ~24 tahun, lalu plateau.
-
-### 6.3 Mekanisme Fee
-
-Setiap transaksi membayar fee. Model fee berbeda berdasarkan jalur eksekusi:
-
-**Jalur native.** MIN_TX_FEE flat 10.000 sentri (0,0001 SRX) per transaksi, terlepas dari operasi. Operasi native memiliki biaya tetap pada level protokol.
-
-**Jalur EVM.** Mekanika EIP-1559 [13] standar: `baseFeePerGas` per blok yang menyesuaikan dengan kongesti, plus tip yang ditetapkan pengirim. `gasUsed × (baseFee + tip)` dikenakan.
-
-Dari setiap fee yang dibayar, di kedua jalur:
-
-- **50% dihancurkan selamanya** dengan dikirim ke alamat burn yang dapat diverifikasi, dari mana tidak ada transaksi yang dapat diproduksi. Total yang dibakar dapat diamati publik di chain.
-
-- **50% dikreditkan langsung ke proposer blok** yang memasukkan transaksi tersebut (saldo yang langsung dapat dibelanjakan). Ini adalah komponen variabel pendapatan validator di atas subsidi blok yang tetap.
-
-Block subsidy sendiri mengikuti jalur berbeda: di-mint ke escrow protocol-treasury dan diakumulasikan pro-rata ke precommit signer blok, yang di-claim via operasi staking eksplisit (Bagian 6.5). Fee dan subsidy sengaja dipisah seperti ini — proposing dibayar real-time agar validator melihat pendapatan langsung, sementara subsidy di-escrow agar ekspansi pasokannya masuk sirkulasi hanya saat di-claim.
+Timeout per-fase tumbuh linier dengan nomor ronde untuk menyerap partial synchrony berkelanjutan:
 
 ```
-Gambar 3 — Aliran pembagian fee (per transaksi)
-
-   tx fee
-     │
-     ├──── 50% ───→  BURN_ADDRESS    (dihancurkan selamanya)
-     │
-     └──── 50% ───→  proposer blok   (saldo langsung dapat dibelanjakan)
+propose_timeout(r)   = min(20_000 + r × 1_000, 30_000) ms
+prevote_timeout(r)   = min(12_000 + r × 2_000, 30_000) ms
+precommit_timeout(r) = min(12_000 + r × 2_000, 30_000) ms
 ```
 
-### 6.4 Premine dan Distribusi Awal
+Sekali timeout fase apa pun mencapai cap 30 s, ia tidak tumbuh lebih lanjut. Setelah `MAX_ROUND = 100` ronde berturut-turut yang gagal pada satu height, chain dianggap stalled pada height tersebut; pemulihan memerlukan intervensi operator (§11.1).
 
-Premine sebesar 63 juta SRX—20% dari cap pasokan—dialokasikan saat genesis di empat peran. Seluruh alamat alokasi bersifat publik dan dapat diverifikasi on-chain:
+### 4.5 Sekuens Konsensus
 
-| Peran | Jumlah | Alamat (pemegang saat ini) | Tujuan tingkat tinggi |
-|-------|--------|----------------------------|------------------------|
-| Founder | 21 juta SRX | `0x5b5b06688dcdbe532353ac610aaff41af825279d` | Treasury operasional jangka panjang |
-| Early Validator | 10,5 juta SRX | `0x328d56b8174697ef6c9e40e19b7663797e16fa47` | Pool insentif validator |
-| Ecosystem Fund | 21 juta SRX | `0xeb70fdefd00fdb768dec06c478f450c351499f14` | Hibah ekosistem dan budget pertumbuhan |
-| Reserve | 10,5 juta SRX | `0x2578cad17e3e56c2970a5b5eab45952439f5ba97` | Cadangan strategis |
-
-Sisa 80% pasokan (252 juta SRX) diterbitkan melalui block reward selama kira-kira 24 tahun, setelah itu tidak ada SRX baru yang diterbitkan. Kebijakan sub-alokasi terperinci (program hibah, budget listing, kampanye airdrop, pengaturan custody, komitmen vesting) berada di dokumen tokenomik operasional yang dipublikasikan di [sentrixchain.com/docs/tokenomics](https://sentrixchain.com/docs/tokenomics); dokumen tersebut berkembang seiring chain matang, sementara empat jumlah dan cap di atas tidak berubah.
-
-**Vesting.** Premine tidak memiliki jadwal vesting on-chain. Alokasi Founder secara operasional diperlakukan sebagai posisi jangka panjang oleh penulis, bukan posisi yang dapat diperdagangkan, namun ini adalah komitmen perilaku, bukan paksaan protokol. Baca dokumen tokenomik operasional untuk skedul komitmen saat ini, audit alamatnya on-chain, dan putuskan kepercayaan Anda sesuai itu.
-
-### 6.5 Routing Block Subsidy
-
-```
-Gambar 4 — Routing block subsidy
-
-   blok N             PROTOCOL_TREASURY        StakingOp::ClaimRewards
-   ─────────   →  ───────────────────────  →   ─────────────────────────
-   1 SRX subsidy      (akun escrow)            Setiap precommit signer
-   ↓                                           mengakumulasi pending_rewards
-   di-mint ke                                  pro-rata terhadap stake mereka.
-   PROTOCOL_TREASURY                           Validator dan delegator
-   bukan langsung                              claim eksplisit via transaksi
-   ke validator                                yang ditandatangani.
-```
-
-Block subsidy tidak membayar validator secara langsung. Mereka dikreditkan ke escrow protocol-treasury, lalu diakumulasikan pro-rata ke saldo pending-rewards setiap validator yang menandatangani precommit blok (delegator mewarisi akrual validator mereka, dikurangi komisi). Validator dan delegator menarik ke saldo yang dapat dibelanjakan melalui operasi staking eksplisit. Desain ini menjaga invarian pasokan — SRX baru masuk sirkulasi hanya saat di-claim, tidak pernah saat diproduksi — dan memberikan batas akuntansi yang bersih antara penerbitan dan distribusi.
-
----
-
-## 7. Ekonomi Validator
-
-### 7.1 Stake yang Dipertaruhkan dan Slashing
-
-Setiap validator harus mengikat self-stake minimum ke protokol. Self-stake dipertaruhkan: kemisbehaviour yang dapat dibuktikan menghasilkan slashing. Matriks slashing:
-
-| Pemicu | Bukti | Stake di-slash | Durasi jail |
-|--------|-------|----------------|-------------|
-| Double-sign | Dua signature pada blok yang konflik di height yang sama | 20% (parametrik) | Permanen (tombstone) |
-| Downtime | Melewatkan > threshold blok dalam window | 0,1% (parametrik) | Configurable jail blocks |
-
-Penalti double-sign berat karena bukti tidak ambigu dan tindakan bersifat malicious. Penalti downtime ringan karena penyebab sah (reboot kernel, blip jaringan singkat) umum; ia menskala dengan persistensi alih-alih menghukum ketidakhadiran transien. Kedua penalti mengurangi stake aktif validator dan menghapusnya dari active set; re-entry membutuhkan unjail eksplisit.
-
-SRX yang di-slash dihancurkan (ditambahkan ke BURN_ADDRESS), bukan didistribusi ulang. Ini menjaga invarian pasokan dan menghindari menciptakan insentif buruk di antara validator yang tidak di-slash untuk mendorong slashing kompetitor.
-
-### 7.2 Block Reward dan Bagi Hasil Fee
-
-Pendapatan validator memiliki dua komponen yang mengalir di jalur berbeda:
-
-- **Bagian block subsidy.** Untuk setiap blok yang precommit-nya ditandatangani validator, mereka mengakumulasi sebagian subsidy 1-SRX blok itu proporsional terhadap stake mereka. Dengan *N* validator aktif yang menandatangani setiap blok, validator dengan fraksi stake *f* = `validator_stake / total_active_stake` mengakumulasi sekitar *f* dari setiap subsidy blok. Akrual berada di escrow (`PROTOCOL_TREASURY`) dan ditarik melalui operasi staking eksplisit `ClaimRewards`.
-- **Bagi hasil fee.** Untuk setiap blok yang validator *usulkan*, 50% dari fee transaksi blok itu dikreditkan langsung ke saldo mereka (langsung dapat dibelanjakan). Rotasi proposer round-robin yang dibobotkan stake memberikan mereka fraksi *f* yang diharapkan dari semua blok yang diusulkan per epoch.
-
-Pendapatan yang diharapkan per epoch, untuk validator dengan fraksi stake *f*:
-
-```
-revenue ≈  f × epoch_length × block_subsidy        (dari menandatangani blok; di-escrow)
-         + 0,5 × f × epoch_fees                    (dari mengusulkan blok; spendable)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Proposer (h,r)
+    participant V1 as Validator v₁
+    participant V2 as Validator v₂
+    participant Vn as Validator v_n
+    Note over P,Vn: PROPOSE (timeout 20s + r×1s, capped 30s)
+    P->>V1: Proposal(h, r, B)
+    P->>V2: Proposal(h, r, B)
+    P->>Vn: Proposal(h, r, B)
+    Note over P,Vn: PREVOTE (timeout 12s + r×2s, capped 30s)
+    V1-->>P: Prevote(h, r, H(B))
+    V1-->>V2: Prevote(h, r, H(B))
+    V2-->>V1: Prevote(h, r, H(B))
+    V2-->>Vn: Prevote(h, r, H(B))
+    Vn-->>P: Prevote(h, r, H(B))
+    Note over P,Vn: ≥Q stake-weighted prevotes → polka
+    Note over P,Vn: PRECOMMIT (timeout 12s + r×2s, capped 30s)
+    V1-->>P: Precommit(h, r, H(B))
+    V2-->>P: Precommit(h, r, H(B))
+    Vn-->>P: Precommit(h, r, H(B))
+    Note over P,Vn: ≥Q stake-weighted precommits → FINALIZE
+    Note over P,Vn: B finalized; J_h = {Precommits}
+    Note over P,Vn: Apply STF; advance to (h+1, 0)
 ```
 
-Delegator mewarisi akrual validator mereka pada kedua komponen, dikurangi tarif komisi yang dipublikasikan validator. Validator dengan stake lebih tinggi mendapatkan proporsional lebih banyak pada kedua sumbu.
+**Gambar 2.** Ronde Voyager BFT dalam happy path. Timeout berlabel adalah batas atas untuk setiap fase; pada mesh sehat ronde selesai dalam waktu jauh lebih sedikit, dan chain memproduksi blok pada target 1 s.
 
-### 7.3 Penalti Liveness
+### 4.6 Safety
 
-Validator yang melewatkan blok mengakumulasikan downtime terhadap window yang bergerak (LIVENESS_WINDOW). Downtime berkelanjutan menghasilkan jailing, yang menghapus validator dari active set dan slashing sebagian kecil stake.
+**Teorema 1 (Agreement).** *Untuk semua height `h`, tidak ada dua validator jujur yang memfinalisasi blok berbeda di height `h`, asalkan `β < 1/3` dari stake adalah Byzantine.*
 
-### 7.4 Genesis dan Bootstrap
+**Sketsa pembuktian.** Misalkan validator jujur `v₁` dan `v₂` memfinalisasi `B` dan `B′` di height `h` dengan `H(B) ≠ H(B′)`. Masing-masing melihat `Q` precommit untuk blok masing-masing. Dengan `Q = ⌊2n/3⌋ + 1` dan `f = ⌊(n − 1)/3⌋`, kita memiliki `2Q − n ≥ f + 1`, sehingga kedua set precommit berbagi setidaknya `f + 1` validator. Di antara validator yang dibagi ini setidaknya satu adalah jujur (karena paling banyak `f` adalah Byzantine). Sebuah validator jujur yang melakukan precommit `H(B)` tidak dapat melakukan precommit `H(B′)` tanpa polka antara untuk `H(B′)` (Locking Invariant, §4.3). Agar polka terjadi, validator yang membawa total stake `≥ Q` harus telah melakukan prevote `H(B′)`, yang mengharuskan setidaknya `Q − f > f` validator jujur melepaskan kunci mereka pada `H(B)` — bertentangan dengan Locking Invariant untuk validator-validator tersebut. ∎
 
-State genesis Sentrix dikonstruksi dari file konfigurasi (`genesis.toml`) yang mendeklarasikan:
+**Teorema 2 (Validity).** *Setiap blok yang difinalisasi adalah well-formed: header-nya valid, semua signature transaksi terverifikasi, state root cocok dengan eksekusi `STF`, dan justifikasinya adalah set `Q`-precommit yang valid pada parent-nya.*
 
-- Chain ID (7119 mainnet, 7120 testnet).
-- Saldo premine awal (alokasi 63 juta SRX di empat peran).
-- Validator set awal dengan public key dan komitmen self-stake.
-- Parameter protokol efektif dari blok 1 (block time, konstanta fee, fork heights).
+**Pembuktian.** Validator jujur hanya melakukan prevote terhadap blok well-formed (§4.2.2). Untuk finalisasi, `Q ≥ n − f` validator melakukan precommit, di mana setidaknya `Q − f ≥ n − 2f > f` adalah jujur. Precommit jujur memerlukan prevote jujur, dan prevote jujur memerlukan blok valid. ∎
 
-Node mana pun dapat memverifikasi state genesis dengan menerapkan ulang konfigurasi genesis; state root yang dihasilkan harus cocok dengan hash genesis yang hardcoded.
+### 4.7 Liveness
 
-### 7.5 Menjadi Validator
+**Teorema 3 (Termination).** *Di bawah partial synchrony (§2.2) dan `β < 1/3`, setiap height pada akhirnya difinalisasi dalam `MAX_ROUND` ronde.*
 
-Validator set bersifat terbuka dan tanpa izin. Operator mana pun yang dapat menjalankan infrastruktur yang andal dan mengikat self-stake minimum dapat mendaftar.
+**Sketsa pembuktian.** Setelah `GST`, semua pesan antar validator jujur tersampaikan dalam `Δ`. Mekanisme round-skip (§4.4) pada akhirnya memilih timeout yang lebih besar dari `Δ` (di-cap pada 30 s, cukup untuk `Δ` apa pun yang masuk akal dalam kondisi jaringan produksi). Dalam ronde semacam itu, `Proposal` dari proposer jujur mencapai semua validator jujur tepat waktu, semua prevote jujur mencapai semua validator jujur tepat waktu (menghasilkan polka stake `≥ n − f ≥ Q`), dan demikian pula untuk precommit. Blok difinalisasi. Seleksi proposer round-robin (§4.2) menjamin proposer jujur dipilih dalam paling banyak `f + 1` ronde berturut-turut, jauh di dalam `MAX_ROUND = 100`. ∎
 
-Persyaratan konkret:
+### 4.8 Kompleksitas Pesan
 
-- **Hardware:** Server x86-64 modern dengan ≥4 inti CPU, ≥8 GB RAM, ≥250 GB penyimpanan SSD, dan konektivitas jaringan yang stabil. Sebuah virtual private server tunggal di datacenter ternama cukup untuk skala saat ini; validator produksi biasanya berjalan pada 8 GB RAM dengan headroom yang nyaman.
-- **Jaringan:** Alamat IPv4 publik yang stabil dengan port TCP 30303 dapat dijangkau untuk transport P2P libp2p.
-- **Self-stake:** Bond minimum dari token SRX native, terkunci selama aktif dan selama periode unbonding. Threshold pasti adalah parameter protokol (lihat Lampiran A).
-- **Identitas:** Wallet validator yang terdaftar (keypair secp256k1) dengan nama validator yang dapat dibaca manusia. Wallet menandatangani blok dan vote; manajemen kunci yang aman adalah tanggung jawab operator.
+Per ronde, setiap validator melakukan broadcast satu `Prevote` dan satu `Precommit`. Proposer secara tambahan melakukan broadcast satu `Proposal`. Dengan `n` validator, pesan originating per-ronde adalah persis `2n + 1` (satu proposal, `n` prevote, `n` precommit). Di bawah delivery all-to-all melalui mesh gossipsub, total byte yang ditransfer berskala sebagai `O(n²)` di kasus terburuk; dengan gossip optimal total amortisasi menjadi `O(n log n)`.
 
-Alur registrasi: operator menjalankan `sentrix validator register` dengan keystore wallet mereka, membayar fee transaksi registrasi + bonding self-stake minimum. Setelah terdaftar, validator memenuhi syarat untuk inklusi active-set; apakah mereka masuk ke active set di epoch berikutnya tergantung ranking berbobot stake. Delegator dapat mulai mendelegasikan ke validator segera setelah registrasi.
+Untuk `n = 4` (mainnet saat ini, `Q = 3`), pesan per-ronde adalah `2 × 4 + 1 = 9`. Untuk ukuran active-set maksimum `n = 21` (`Q = 15`), pesan per-ronde adalah `2 × 21 + 1 = 43`. Kedua regime berada jauh di dalam envelope throughput gossip libp2p.
 
-Tidak ada pembatasan yurisdiksi, tidak ada whitelist, tidak ada proses aplikasi. Misbehavior ditegakkan secara ekonomi (slashing) bukan secara administratif. Kami memperlakukan properti open-validator-set sebagai jaminan desentralisasi fundamental.
+### 4.9 BFT Gate Relax
 
-### 7.6 Respons Insiden
-
-Sebuah blockchain yang live sesekali menghadapi konsensus stall, bug software, partisi jaringan, atau serangan terkoordinasi. Model respons insiden Sentrix terstruktur di sekitar tiga prinsip:
-
-**Deteksi melalui observasi.** Setiap full node secara independen memverifikasi penerapan blok. Divergensi state menghasilkan hash blok yang divergen; node dengan state yang divergen tidak dapat memenangkan chain kanonis. Daemon `sentrix-watchdog` berjalan terhadap RPC publik dan mem-page operator pada stall (tidak ada blok maju selama >5 menit) atau deteksi divergensi per-validator.
-
-**Pemulihan melalui penjajaran state-kanonis.** Ketika validator divergen—misalnya, setelah hard fork salah-diterapkan di satu node, atau setelah chain.db node rusak—protokol pemulihannya adalah mengidentifikasi state kanonis (hash chain yang disepakati supermayoritas validator berbobot stake) dan mereplikasi chain.db tersebut ke node yang divergen. Ini adalah prosedur operasional yang well-defined dan repeatable yang didokumentasikan dalam runbook operator.
-
-**Upgrade terkoordinasi melalui hard fork.** Perbaikan bug yang memerlukan perubahan konsensus dirilis sebagai hard fork yang di-gate oleh height aktivasi. Operator mengupgrade biner mereka sebelum height aktivasi; pada aktivasi, semua node menerapkan logika baru secara atomik. Window antara rilis biner dan height aktivasi (biasanya 1–7 hari untuk perbaikan tidak-mendesak, beberapa jam untuk yang mendesak) adalah periode koordinasi di mana jaringan menyetujui upgrade.
-
-Chain tidak memiliki veto governance on-chain pada state saat ini; upgrade protokol dikoordinasikan oleh rilis biner. Seiring chain matang dan desentralisasi memperdalam (Tahap 5 di arah ke depan), ini bertransisi ke governance on-chain formal.
+Pre-fork, protokol mengharuskan seluruh active set online (`active = n`) untuk membuat progress konsensus. Post `BFT_GATE_RELAX_HEIGHT`, kebutuhan diturunkan menjadi `active ≥ ⌈2n/3⌉`, memberikan margin toleransi satu-jail untuk `n = 4` (memungkinkan chain advance dengan tiga dari empat penanda saat satu di-jail). Gate dikontrol operator melalui environment variable `BFT_GATE_RELAX_HEIGHT`; default-nya `u64::MAX` (disabled).
 
 ---
 
-## 8. Model Keamanan
+## 5. Lapisan Eksekusi
 
-### 8.1 Jaminan Kriptografis
+Lapisan eksekusi mengimplementasikan `STF: 𝒮 × ℬ → 𝒮 ∪ {⊥}`. Ia men-dispatch transaksi ke salah satu dari dua rel — *native* atau *EVM* — berdasarkan `to_address` transaksi, menerapkan side effect ke state kanonis, dan mengkomputasi state root yang dihasilkan.
 
-Setiap transaksi ditandatangani dengan kunci privat yang alamat publiknya mengotorisasi operasi. Header blok berisi state root dan signature proposer. State root commit ke state kanonis via binary sparse Merkle tree.
+### 5.1 Pipeline
 
-### 8.2 Jaminan Kripto-Ekonomi
-
-Validator berpartisipasi karena menguntungkan untuk melakukannya secara jujur. Slashing menjadikan validasi tidak jujur memiliki nilai harapan negatif pada ukuran stake mana pun. Tarif slashing dikalibrasi untuk membuat serangan safety-violating yang berhasil membutuhkan komitmen stake terkoordinasi setidaknya sepertiga dari total—komitmen stake yang biaya marjinalnya (X·P/3 di mana X adalah total bonded SRX dan P adalah harga pasar SRX) tumbuh dengan kesuksesan chain.
-
-### 8.3 Jaminan Sosial
-
-Perilaku chain dapat diamati. State, blok, transaksi, validator set, peristiwa slashing—semuanya publik. Trust digantikan oleh verifikasi.
-
-### 8.4 Keamanan Kuantitatif
-
-Biaya untuk mengompromikan keamanan chain dibatasi ke bawah oleh biaya untuk mengakuisisi dan slashing sepertiga dari total bonded SRX. Jika protokol mengikat X SRX pada harga pasar P, maka biaya minimum serangan A memenuhi:
-
-```
-A ≥ (X × P) / 3
+```mermaid
+flowchart LR
+    A[Block B<br/>txs in order] --> B[Pass 1:<br/>signature verify<br/>parallelizable]
+    B --> C[Pass 2:<br/>nonce + balance check]
+    C --> D[Fee deduct +<br/>burn ceil/floor split]
+    D --> E{to_address<br/>routing}
+    E -->|0x...0000| F[Native TokenOp]
+    E -->|0x...0100| G[Native StakingOp]
+    E -->|0x...0002| H[System / Treasury]
+    E -->|other 0x...| I[EVM dispatch<br/>revm 37]
+    F --> J[State mutation]
+    G --> J
+    H --> J
+    I --> J
+    J --> K[Pass 3:<br/>block subsidy<br/>1 SRX → PROTOCOL_TREASURY]
+    K --> L[Subsidy accrued<br/>pro-rata to<br/>precommit signers]
+    L --> M[Trie commit:<br/>recompute root]
+    M --> N{root ==<br/>B.header.state_root?}
+    N -->|yes| O[S' commits to chain.db]
+    N -->|no| P[REJECT BLOCK<br/>diverged]
 ```
 
-Ini batas bawah, bukan batas atas: serangan praktis menghadapi biaya tambahan (mengkoordinasikan akuisisi stake tanpa gangguan pasar, mengeksekusi serangan dalam window unbonding, menerima kerusakan reputasi permanen). Batas naik secara monoton dengan baik X (pasokan bonded) dan P (harga pasar), yang berarti kesuksesan chain meningkatkan biaya serangan.
+**Gambar 3.** Pipeline eksekusi. Setiap transaksi melewati verifikasi signature, penanganan fee, dispatch rel, dan mutasi state. Block subsidy diaplikasikan satu kali per blok di akhir; state trie dikomputasi ulang, dan root yang dihasilkan dicek terhadap klaim proposer. Pass 1 (verifikasi signature) dapat diparalelkan secara independen per transaksi; Pass 2 dan setelahnya bersifat strict sequential menurut urutan `B.txs` (§5.2).
 
-Sebagai contoh kerja: jika 100 juta SRX di-bond pada harga pasar $0,10/SRX, biaya minimum serangan adalah sekitar $3,3 juta. Pada 200 juta bonded dan $1,00/SRX, biayanya naik ke ~$67 juta. Pada 300 juta bonded dan $5,00/SRX, biayanya ~$500 juta. Angka-angka ini ilustratif; nilai aktual tergantung dinamika pasar.
+### 5.2 Aksioma Determinisme
 
-### 8.5 Long-Range Attacks dan Weak Subjectivity
+Agar `STF` memenuhi SMR Property (§2.4), setiap implementasi harus deterministik dalam tiga pengertian:
 
-Chain proof-of-stake murni secara teoretis rentan terhadap long-range attacks: penyerang yang mengakuisisi kunci validator lama (setelah pemiliknya unbond dan menjual) dapat fork chain dari titik awal yang sewenang-wenang. Sentrix bertahan terhadap ini melalui tiga mekanisme:
+**(D1) Urutan operasi.** Transaksi diaplikasikan dalam urutan `B.txs`. Tidak ada reordering, tidak ada parallel-execution-with-merge yang menghasilkan urutan commit berbeda.
 
-- **Periode unbonding.** Stake dapat di-slash untuk durasi tetap setelah penarikan. Penyerang yang mengakuisisi kunci harus memalsukan blok sebelum periode unbonding berlalu.
+**(D2) Konsistensi pembacaan state.** Pembacaan state suatu transaksi pada titik eksekusinya merefleksikan semua transaksi sebelumnya di blok yang sama. Tidak ada snapshot isolation, tidak ada divergensi read-after-write.
 
-- **Weak subjectivity checkpoints.** Node baru yang bergabung dengan jaringan diharapkan mulai dari hash blok terbaru yang mereka percayai melalui beberapa channel out-of-band (peer, validator yang dipercaya, website proyek).
+**(D3) Bebas floating-point.** Tidak ada mutasi state yang bergantung pada aritmatika IEEE-754. Semua perhitungan adalah integer atau fixed-point. Sentrix menggunakan `u64` sentri di seluruh sistem; komputasi yang berdenominasi SRX adalah kelipatan integer atau quotient (mis. `total_fee.div_ceil(2)` untuk burn share, §8.3).
 
-- **Sync active-set periodik.** Light client melakukan re-sync validator set yang dipercaya pada interval lebih pendek dari periode unbonding.
+Aksioma ini berlaku untuk implementasi sequential saat ini. Mereka juga adalah constraint yang harus dipenuhi setiap skema parallel-execution masa depan (§5.6): sebuah eksekusi paralel valid jika dan hanya jika ia menghasilkan state yang tidak dapat dibedakan dari eksekusi sequential yang didefinisikan oleh urutan `B.txs`.
 
-Mekanisme-mekanisme ini standar untuk chain proof-of-stake BFT [14].
+### 5.3 State Transition Function
 
-### 8.6 Mode Kegagalan
+```
+STF(S, B):
+  // Pass 0: header validation
+  1.  verify B.header.previous_hash == H(B_{h-1})
+  2.  verify B.header.proposer == propose(B.header.index, r)
+                                  for some round r ≤ MAX_ROUND
+                                  (round determined by justification)
+  3.  verify B.header.justification is a valid Q-precommit set on B_{h-1}
+  4.  S' ← S
 
-Chain memiliki empat mode kegagalan well-defined:
+  // Pass 1: transaction signature verification (parallelizable)
+  5.  for each tx in B.txs:
+      a. verify ECDSA(tx.signature, canonical_signing_payload(tx),
+                       tx.public_key)
+      b. verify keccak256(tx.public_key)[12:] == tx.from_address
 
-- **Lebih dari ⅓ stake Byzantine.** Keamanan tidak lagi dijamin. Chain mungkin fork. Pemulihan memerlukan koordinasi sosial.
+  // Pass 2: sequential apply (D1)
+  6.  for each tx in B.txs (in order):
+      a. if S'[tx.from].nonce ≠ tx.nonce: skip
+      b. if tx.fee < MIN_TX_FEE: skip
+      c. if S'[tx.from].balance < tx.fee + tx.amount: skip
+      d. S'[tx.from].balance -= tx.fee
+      e. // burn share is debited but never credited;
+         // total_burned is tracked in chain accounting
+         total_burned_srx += tx.fee.div_ceil(2)
+      f. dispatch tx based on tx.to_address (Table 5.5):
+         - TOKEN_OP_ADDRESS  (0x...0000) → native TokenOp
+         - STAKING_ADDRESS   (0x...0100) → native StakingOp
+         - PROTOCOL_TREASURY (0x...0002) → system/claim path
+         - any other         → EVM dispatch via revm
+      g. if dispatch fails:
+           - revert state changes for this tx (step f side-effects)
+           - keep fee deduction (step d) and burn debit (step e)
+      h. S'[tx.from].nonce += 1
 
-- **Lebih dari ⅔ stake Byzantine.** State invalid dapat diproduksi dan ditandatangani. Deteksi memerlukan full node jujur memverifikasi state secara independen.
+  // Pass 3: validator fee credit (per block, not per tx)
+  7.  let total_fee = Σ tx.fee for tx in B.txs (admissible)
+  8.  let validator_share = total_fee - total_fee.div_ceil(2)
+                          // = floor(total_fee / 2)
+  9.  S'[B.header.proposer].balance += validator_share
 
-- **Partisi jaringan.** Partisi minoritas berhenti karena tidak dapat mencapai supermayoritas. Partisi mayoritas berlanjut dengan active set tereduksi. Ketika partisi sembuh, minoritas mendeteksi chain kanonis yang lebih panjang dan rejoin.
+  // Pass 4: block subsidy
+  10. let subsidy = block_reward(B.header.index)
+                  = max(BLOCK_REWARD ÷ 2^era, 0) where
+                    era = ⌊B.header.index / HALVING_INTERVAL_V2⌋
+  11. S'[PROTOCOL_TREASURY].balance += subsidy
+  12. for each precommitter v in B_{h-1}.justification.precommits:
+        S'.staking.pending_rewards[v] += subsidy × s(v) / Σ s(precommitters)
+                                         × (1 − commission(v) for delegators)
 
-- **Sensor terkoordinasi terhadap transaksi spesifik.** Tahan terhadap sensor satu kali karena rotasi proposer menjamin bahwa validator aktif yang tidak menyensor pada akhirnya akan mengusulkan blok. Sensor berkelanjutan membutuhkan kontrol active validator set, yang menurut seleksi berbobot stake membutuhkan kontrol stake mayoritas.
+  // Pass 5: trie commit
+  13. recompute root R from S' (binary sparse Merkle, depth 256)
+  14. if h ≥ STATE_ROOT_FORK_HEIGHT and R ≠ B.header.state_root:
+        return ⊥
+  15. return S'
+```
 
-### 8.7 Postur Privasi
+`STF` deterministik berdasarkan D1–D3 (§5.2), sehingga setiap validator jujur mengkomputasi `S'` yang sama dari `(S, B)` yang sama. Divergensi pada langkah 14 mengindikasikan baik (a) proposer Byzantine yang mengusulkan blok yang state root yang diklaim tidak cocok dengan eksekusi yang benar, atau (b) bug pada executor lokal.
 
-Sentrix bersifat **transparan by design**. Setiap transaksi, saldo, dan pemanggilan kontrak dapat diamati publik. Ini adalah pilihan disengaja: chain melayani penyelesaian ekonomi-riil, di mana audit trail adalah fitur, bukan beban. Kami tidak berusaha menyediakan primitif privasi built-in (transaksi zk-shielded, saldo anonim, mixer).
+Pengecekan state root di-gate oleh `STATE_ROOT_FORK_HEIGHT = 100_000`. Blok pre-fork tidak di-commit ke state root di header-nya; determinisme bytewise chain adalah satu-satunya consensus binding untuk blok-blok tersebut. Post-fork, state root adalah bagian dari block hash dan divergensi apa pun membatalkan apply.
 
-Pengguna yang membutuhkan privasi untuk kasus penggunaan spesifik dapat membangun di atasnya: kontrak zk-rollup, dApp privacy-preserving, komitmen off-chain yang diverifikasi on-chain. Lapisan dasar tetap dapat diobservasi; privasi bersifat opt-in di lapisan aplikasi.
+### 5.4 Native Rail
 
-Pilihan desain ini memiliki trade-off. Chain yang transparan lebih mudah diaudit, lebih mudah diintegrasikan dengan kerangka regulasi, dan lebih mudah dipertimbangkan pada level protokol. Mereka kurang cocok untuk operator yang membutuhkan privasi wajib (perlindungan saksi, korban pelecehan, counterpart komersial sensitif). Sentrix menerima trade-off tersebut demi keterbacaan regulasi.
+Native rail men-dispatch tiga kelas operasi berdasarkan `to_address`:
 
----
+**TokenOp** (`TOKEN_OP_ADDRESS = 0x00…0000`)
+Di-encode sebagai JSON kanonis `{"op": "...", ...}` di `tx.data`. Variant: `Deploy`, `Transfer`, `Burn`, `Mint`, `Approve` (fungible SRC-20). Variant `DeployNft`, `MintNft`, `TransferNft`, `BurnNft`, `Deploy1155`, `Mint1155`, `Transfer1155`, `Burn1155` (NFT SRC-721 / SRC-1155) wire-format-nya stabil namun dispatch-nya di-gate oleh `NFT_TOKENOP_HEIGHT = u64::MAX` (disabled) menunggu lapisan storage Pass-2.
 
-## 9. Tesis Ekonomi Riil
+**StakingOp** (`STAKING_ADDRESS = 0x00…0100`)
+Di-encode sebagai JSON kanonis. Variant: `RegisterValidator`, `Delegate`, `Undelegate`, `Redelegate`, `ClaimRewards`, `Unjail`, `AddSelfStake`, `SubmitEvidence`, `JailEvidenceBundle`. Yang terakhir di-gate oleh `JAIL_CONSENSUS_HEIGHT = u64::MAX` (dispatch jail yang dikomputasi konsensus di-defer menunggu fix root cause non-determinisme).
 
-Posisi Sentrix adalah penyelesaian dunia riil.
+**System** (`PROTOCOL_TREASURY = 0x00…0002`)
+Operasi treasury (drain reward escrow), diimplementasikan di dalam executor alih-alih sebagai enum op user-facing.
 
-**Aset dunia riil.** Hak atas sesuatu yang tangible dan kontraktual—real estate, faktur, ekuitas di perusahaan swasta, hak atas aliran pendapatan, bill of lading—berharga bagi pemiliknya. Mereka juga tidak likuid. Blockchain yang dapat merepresentasikan ini sebagai token on-chain, dengan provenance yang dapat dibuktikan dan penyelesaian atomik, menghilangkan friksi proporsional dengan nilai aset.
+Native rail bypass revm sepenuhnya. Op native berbiaya `MIN_TX_FEE = 10_000 sentri` flat, terlepas dari operasi. Operasi native saling beroperasi dengan EVM rail melalui state kanonis: kontrak EVM dapat membaca saldo SRC-20 native melalui precompile; state staking native serupa dapat dibaca.
 
-**Penyelesaian mata uang lokal.** Sebagian besar aktivitas ekonomi didenominasi dalam mata uang lokal—rupiah, peso, dong, baht, ringgit, dirham. Blockchain yang mendukung penerbitan stablecoin terhadap mata uang ini, dengan operasi native untuk transfer murah cepat, menjadi rel penyelesaian untuk perdagangan retail yang saat ini tidak memilikinya.
+### 5.5 EVM Rail
 
-**Perdagangan lintas-negara dan remitansi.** Pembayaran lintas-negara secara tradisional diselesaikan melalui correspondent banking dengan keterlambatan beberapa hari dan fee yang tidak proporsional. Blockchain yang operasi native-nya memakan biaya pecahan sen dan finalisasi dalam satu detik secara fundamental cocok untuk aliran lintas-negara berukuran kecil. Indonesia adalah negara penerima remitansi pada skala puluhan miliar dolar per tahun.
+Untuk `to_address` lainnya, dispatcher menginvoke `revm 37` melalui adapter `sentrix-evm` dengan state provider yang di-back oleh chain trie. Semantik EVM standar berlaku: gas accounting mengikuti EIP-1559 [13] (`baseFeePerGas` per-blok plus tip yang ditetapkan pengirim), perilaku opcode cocok dengan Ethereum mainnet kecuali untuk chain ID (`7119` mainnet, `7120` testnet). Tooling standar (Foundry, Hardhat, MetaMask, ethers, viem) saling beroperasi tanpa modifikasi.
 
-**Microfinance dan penyelesaian koperasi.** Tabungan kelompok (arisan), perbankan koperasi (koperasi simpan-pinjam), dan pinjaman komunitas tertanam dalam dalam budaya ekonomi Indonesia. Mereka beroperasi pada kepercayaan, catatan kertas, dan koordinasi informal. Blockchain yang dapat merepresentasikan aliran ini—on-chain, dapat diverifikasi, biaya rendah—adalah upgrade alih-alih pengganti.
+Sisi-EVM `eth_sendRawTransaction` masuk ke lapisan translation yang membungkus transaksi RLP-encoded EIP-155 ke dalam form transaksi Sentrix kanonis (§5.7) sebelum admission ke mempool. Verifikasi signature EIP-155 terjadi sebelum translation; gossip dan finalisasi identik dari sana.
 
----
+Transfer value EVM (sebuah `tx.value` non-zero yang menyertai contract call) di-gate oleh `EVM_VALUE_TRANSFER_HEIGHT = u64::MAX` (disabled) menunggu investigasi divergensi eager-write yang memotivasi fork-gate v2.1.50. Operator menyalakan gate melalui environment variable `EVM_VALUE_TRANSFER_HEIGHT` ketika apply EVM Pass-2 telah diverifikasi konsisten lintas cluster.
 
-## 10. Perbandingan dengan Karya Sebelumnya
+Routing diringkas dalam:
 
-| | Block time | Finalitas | Konsensus | VM | Kebijakan pasokan | Primitif native |
-|---|---|---|---|---|---|---|
-| Bitcoin [1] | ~10 menit | Probabilistik | Proof of Work | Tidak ada | Capped, halving | Transfer UTXO |
-| Ethereum [2] | ~12 detik | Probabilistik → final | Proof of Stake | EVM | Inflasioner (variabel) | Transfer Ether |
-| Solana [5] | ~400 ms | Probabilistik | PoH + TowerBFT | SVM (BPF) | Inflasioner (menurun) | Transfer token |
-| Cosmos Hub [3,6] | ~6 detik | Single-block | Tendermint BFT | Cosmos SDK (Go modules) | Inflasioner | Primitif native |
-| Polygon | ~2 detik | Probabilistik + checkpointed | Varian PoS BFT | EVM | Inflasioner (capped) | Hanya EVM |
-| Aptos | ~250 ms | Single-block | AptosBFT | Move | Inflasioner | Modul Move |
-| Sui | ~390 ms | Single-block (per-objek) | Mysticeti BFT | Move (object-centric) | Inflasioner | Modul Move |
-| Near | ~1,2 detik | Single-block | Nightshade (sharded) | NEAR VM (Wasm) | Inflasioner | Kontrak Wasm |
-| **Sentrix** | **~1 detik** | **Single-block** | **DPoS + BFT (ala Tendermint)** | **EVM (revm) + Native rail** | **Capped + halving + 50% burn** | **Token, staking, validator ops** |
+| Sentinel `to_address` | Nama konstanta | Rel / Kelas |
+|---|---|---|
+| `0x0000000000000000000000000000000000000000` | `TOKEN_OP_ADDRESS` | Native TokenOp |
+| `0x0000000000000000000000000000000000000100` | `STAKING_ADDRESS` | Native StakingOp |
+| `0x0000000000000000000000000000000000000002` | `PROTOCOL_TREASURY` | System / Treasury |
+| selain itu | — | EVM via revm |
 
-**Aptos, Sui, Near.** Chain-chain yang lebih baru dengan model eksekusi novel—Move (object-centric dan resource-typed) dan Wasm. Mereka menawarkan properti correctness yang menarik untuk kontrak baru yang ditulis ground-up. Pilihan kompatibilitas EVM Sentrix bersifat disengaja: dApp Solidity yang sudah ada dapat di-deploy tanpa perubahan, ekosistem developer sudah ada pada skala, dan tooling (Foundry, Hardhat, MetaMask, ethers, viem) sudah matang. Chain Move dan Wasm membutuhkan rewriting greenfield untuk setiap dApp—pajak adopsi yang curam untuk diminta dibayar oleh developer pada chain baru.
+### 5.6 Forward-Looking Parallel Execution
 
-Sentrix tidak baru dalam dimensi tunggal mana pun. Kontribusinya adalah kombinasi: eksekusi hibrida native-EVM, BFT berbobot stake, pasokan capped deflasioner, finalitas sub-detik, berorientasi pada penyelesaian dunia riil dan berakar di pasar Indonesia.
+Eksekusi di dalam sebuah blok saat ini bersifat strict sequential (D1, §5.2). Plafon throughput yang dipaksakan oleh protokol adalah
 
----
+```
+TPS_max = MAX_TX_PER_BLOCK / BLOCK_TIME_SECS = 5_000 / 1 = 5_000 tx/s
+```
 
-## 11. Tata Kelola
+Rate yang dapat dicapai pada deployment spesifik mana pun dibatasi oleh throughput apply single-threaded (verifikasi signature, cek nonce/saldo, dispatch, write trie). Di luar regime di mana sequential apply menjenuhkan satu CPU core, parallel execution menjadi diperlukan.
 
-### 11.1 Status Saat Ini
+Model forward-looking parallel-execution mengadopsi skema *optimistic concurrency control* yang terinspirasi oleh Block-STM [16] dan model pipelined execution Monad [18]:
 
-Upgrade protokol Sentrix dikoordinasikan melalui rilis biner yang di-gate oleh height aktivasi. Penulis merilis biner node baru; operator mengupgrade dalam jendela waktu sebelum height aktivasi sebuah fork; pada aktivasi, semua node menerapkan logika baru secara atomik. Ini adalah mekanisme yang sama yang digunakan Bitcoin, Ethereum, dan sebagian besar chain berbasis Tendermint untuk hard fork.
+1. **Static dependency hint.** Setiap transaksi mendeklarasikan (atau dispatcher menginferensikan) sebuah *read-set* dan *write-set*. Untuk op native, set-set ini diturunkan dari argumen operasi (mis. `Delegate.validator` adalah satu-satunya write stake-registry). Untuk dispatch EVM, set-set di-over-approximate dari trace blok sebelumnya.
+2. **Identifikasi independent-batch.** Bangun graph dependency berarah `G = (V, E)` di mana `tx_i → tx_j` iff read-set `tx_j` beririsan dengan write-set `tx_i` dan `j > i` dalam urutan blok. Komputasi node root dari `G`; node-node ini dieksekusi paralel. Setelah setiap batch di-commit, update `G` dan identifikasi layer berikutnya.
+3. **Re-eksekusi optimistic.** Transaksi yang dependency-nya di-over-approximate dieksekusi spekulatif; pada write-conflict, abort dan re-eksekusi transaksi yang konflik secara sequential.
+4. **Sequential commit.** Aplikasikan write setiap transaksi ke state kanonis dalam urutan `B.txs` terlepas dari urutan eksekusi. Ini menjaga D1 — schedule *commit* sama dengan urutan blok.
 
-Pada fase penulis-tunggal saat ini, penulis memegang veto efektif atas rilis apa yang dikirim. Ini sesuai untuk pengembangan tahap awal—iterasi cepat, respons bug yang gesit, tanpa bottleneck komite—namun bukan model governance jangka panjang.
+Perubahan protokol yang dibutuhkan adalah: (a) deklarasi read/write set di metadata transaksi, (b) state provider yang ramah eksekusi spekulatif, (c) aturan resolusi konflik deterministik. Implementasi di-sequence setelah chain mencapai baseline single-implementation yang stabil; produksi saat ini menjalankan jalur sequential apply, dan tidak ada perubahan lapisan konsensus yang dibutuhkan untuk mengaktifkan parallel execution kemudian.
 
-### 11.2 SentrixSafe Multisig
+### 5.7 Format Transaksi
 
-Otoritas atas operasi privileged (kunci otoritas validator, manajemen cadangan treasury, toggle fee-fork) dipegang oleh SentrixSafe multisig, sebuah kontrak turunan Gnosis-Safe yang di-deploy ke chain segera setelah aktivasi Voyager sebagai bagian dari canonical contracts set. Saat ini dikonfigurasi 1-of-1 dengan penulis sebagai sole signer; dimaksudkan untuk berkembang secara organik ke N-of-M seiring chain menarik kontributor jangka panjang yang dapat secara kredibel menandatangani operasi otoritas protokol.
+Sebuah transaksi adalah unit perubahan state. Format wire kanonisnya adalah (`crates/sentrix-primitives/src/transaction.rs`):
 
-Ekspansi terjadi dengan menambahkan co-signer melalui operasi `addOwner` standar SentrixSafe, meningkatkan threshold tanda tangan secara proporsional. Tidak ada timeline keras; standar adalah "co-signer kredibel dengan kelangsungan operasional dan skin-in-the-game," bukan "kuartal kalender."
+```rust
+pub struct Transaction {
+    pub txid:         String,      // hex-encoded SHA-256 of canonical signing payload
+    pub from_address: String,      // hex-encoded 20-byte address (ECDSA-recovered)
+    pub to_address:   String,      // hex-encoded 20-byte address (routing key, §5.5)
+    pub amount:       u64,         // sentri (1 SRX = 10⁸ sentri)
+    pub fee:          u64,         // sentri, ≥ MIN_TX_FEE = 10_000
+    pub nonce:        u64,         // sender account sequence
+    pub data:         String,      // empty for plain transfers;
+                                   // canonical JSON for native ops;
+                                   // EVM call payload for EVM dispatch
+    pub timestamp:    u64,         // unix seconds (anti-replay window)
+    pub chain_id:     u64,         // 7119 mainnet, 7120 testnet
+    pub signature:    String,      // hex secp256k1 ECDSA, 65 bytes (r, s, v)
+    pub public_key:   String,      // hex secp256k1 uncompressed, 65 bytes
+}
+```
 
-### 11.3 Governance On-Chain Mendatang
+Ukuran transaksi maksimum adalah `MAX_TX_SIZE = 128 KB`. Mempool menerima paling banyak `MAX_MEMPOOL_SIZE = 10_000` transaksi secara global, dengan `MAX_MEMPOOL_PER_SENDER = 100` per pengirim; transaksi yang lebih tua dari `MEMPOOL_MAX_AGE_SECS = 3_600` di-evict.
 
-Tahap 5 dari arah ke depan (Bagian 12) memigrasi keputusan protokol ke mekanisme governance on-chain yang berbobot stake. Desain yang diharapkan:
+Payload yang ditandatangani adalah serialisasi JSON kanonis dari delapan field konten (`amount`, `chain_id`, `data`, `fee`, `from`, `nonce`, `timestamp`, `to`) dalam urutan key leksikografis. Payload di-hash dengan SHA-256; digest 32-byte yang dihasilkan ditandatangani dengan secp256k1 ECDSA.
 
-- **Threshold proposal:** Siapa pun yang memegang stake SRX di atas minimum dapat mengajukan proposal.
-- **Voting:** Vote berbobot stake melintasi active validator set, dengan delegator mewarisi vote validator mereka kecuali mereka secara eksplisit override.
-- **Quorum:** Proposal memerlukan partisipasi minimum (target: 33% dari active stake) agar valid.
-- **Threshold lulus:** Dapat dikonfigurasi per jenis proposal—simple majority untuk sebagian besar keputusan, supermayoritas untuk perubahan yang memutus protokol.
-- **Eksekusi:** Proposal yang lulus memicu efek on-chain yang telah didefinisikan sebelumnya (update parameter, pencairan treasury, set height aktivasi hard-fork).
-
-Sampai Tahap 5 rilis, disiplin governance bersifat operasional: operasi privileged hanya via SentrixSafe, penggunaan treasury yang transparan, history commit publik, dan rilis biner yang dikoordinasikan secara terbuka.
-
-### 11.4 Yang Tidak Dapat Diatur Governance
-
-Beberapa properti chain sengaja tidak dapat diatur governance:
-
-- Cap pasokan 315 juta SRX. Tidak ada vote, tidak ada fork, tidak ada upgrade yang mengubah ini. Cap adalah bagian dari kontrak ekonomi fundamental Sentrix.
-- Jadwal halving empat tahun. Terkunci ke kalkulasi block-reward.
-- Rasio burn fee 50%. Terkunci ke dispatch fee.
-- Alokasi genesis (premine 63 juta melintasi empat peran). Dialokasikan pada blok 0; tidak ada mekanisme untuk membatalkannya.
-
-Ini adalah parameter di mana stabilitas adalah fitur. Segala sesuatu lainnya (parameter jaringan, ukuran validator-set, height fork untuk opcode baru) tunduk pada upgrade yang dikoordinasikan.
-
----
-
-## 12. Arah ke Depan
-
-Kami menjelaskan trajektori Sentrix dalam bahasa tahap alih-alih tanggal, karena tanggal menciptakan kekhususan palsu yang kondisi riil tidak pernah hormati.
-
-**Tahap 1: Mainnet beroperasi.** Validator set kecil yang terdistribusi secara geografis. Eksekusi native dan EVM bekerja dengan benar. Block explorer, faucet, dev tooling. Codebase source-available. *(Status saat ini.)*
-
-**Tahap 2: Likuiditas dan penemuan.** Pasar on-chain pertama untuk SRX. Kontrak pertama yang di-deploy oleh developer eksternal. Indexing di registry chain standar. Pengakuan oleh dompet dan bridge standar. Komunitas awal.
-
-**Tahap 3: Integrasi ekonomi riil.** Kasus penggunaan produksi pertama yang melibatkan aset dunia riil, penyelesaian mata uang lokal, atau aliran lintas-negara. Spesifikasi muncul dari penemuan pasar.
-
-**Tahap 4: Desentralisasi validator.** Pertumbuhan validator set dari bootstrap kecil ke jumlah operator independen yang bermakna di berbagai yurisdiksi.
-
-**Tahap 5: Governance on-chain.** Migrasi keputusan protokol yang berarti ke mekanisme governance berbobot stake.
-
-**Tahap 6: Aktivasi lisensi terbuka.** Codebase bertransisi dari source-available ke fully open source di bawah ketentuan standar.
-
-Tahap-tahap ini tidak berjalan pada kalender. Mereka berjalan pada kepuasan prasyarat.
-
----
-
-## 13. Kesimpulan
-
-Sentrix adalah respons yang disengaja terhadap absennya struktur. Blockchain dominan saat ini melayani perdagangan dan spekulasi dengan baik, dan mereka melayani penyelesaian ekonomi riil dengan buruk. Kami tidak percaya ini tak terhindarkan. Kami percaya ini adalah konsekuensi dari pilihan desain yang dapat dibuat berbeda.
-
-Pilihan desain Sentrix adalah: operasi native untuk primitif umum, kompatibilitas EVM untuk kasus umum, konsensus Byzantine Fault Tolerant berbobot stake, finalitas sub-detik, pasokan capped halving deflasioner, dan orientasi pintu masuk pasar terhadap ekonomi Indonesia.
-
-Kami berharap untuk beroperasi dalam jangka waktu yang lama. Sentrix terbuka untuk digunakan, terbuka untuk diperluas, dan terbuka untuk diperiksa. Nilai riil, aset riil, aktivitas ekonomi riil—on chain, cepat, final, dan tahan lama.
-
----
-
-## Lampiran A — Parameter Protokol
-
-| Parameter | Nilai | Catatan |
-|-----------|-------|---------|
-| `BLOCK_TIME` | ~1 d | Target; aktual bervariasi dengan durasi ronde |
-| `MAX_TX_PER_BLOCK` | 5.000 | Configurable pada level protokol |
-| `MAX_SUPPLY` | 315.000.000 SRX | Hard cap, tidak ada governance override |
-| `INITIAL_BLOCK_REWARD` | 1 SRX | Halving setiap HALVING_PERIOD |
-| `HALVING_PERIOD_BLOCKS` | ~126.000.000 | ~4 tahun pada blok 1 d |
-| `MIN_TX_FEE` | 10.000 sentri | 0,0001 SRX (jalur native) |
-| `BURN_RATIO` | 50% | Dari setiap fee transaksi |
-| `MIN_VALIDATOR_SELF_STAKE` | parametrik | Dikonfigurasi di genesis |
-| `UNBONDING_PERIOD` | parametrik | Window stake-slashable setelah penarikan |
-| `LIVENESS_WINDOW` | 14.400 blok | ~4 jam pada blok 1 d |
-| `MIN_SIGNED_PER_WINDOW` | 4.320 blok | 30% dari LIVENESS_WINDOW |
-| `JAIL_DURATION_BLOCKS` | 600 | ~10 menit pada blok 1 d |
-| `DOWNTIME_SLASH_BP` | 10 (0,1%) | Dari self-stake saat jail |
-| `EPOCH_LENGTH` | parametrik | Cadensi rotasi active-set |
-| `STATE_ROOT_FORK_HEIGHT` | aktif | State root di-commit di hash blok |
+Sisi-EVM `eth_sendRawTransaction` masuk ke lapisan translation yang dideskripsikan di §5.5; dompet sisi-native yang menandatangani payload Sentrix kanonis langsung (mis. `solux.sentriscloud.com`) submit ke endpoint `sentrix_sendTransaction`.
 
 ---
 
-## Referensi
+## 6. Lapisan State
+
+### 6.1 Komitmen Trie
+
+State kanonis di-commit melalui *binary sparse Merkle tree* dengan kedalaman 256 [9] (`crates/sentrix-trie`). Setiap leaf di-key oleh hash 256-bit dari alamat akun dan slot storage. Hash root `R(S)` disertakan di header blok sebagai `B.header.state_root`.
+
+Untuk akun `a`, bukti inklusi adalah `O(log₂ N)` di mana `N` adalah jumlah leaf yang terisi. Light client memverifikasi setiap fakta tentang `S` terhadap `R(S)` dengan path Merkle berukuran logaritmik.
+
+Komitmen state root di-gate oleh `STATE_ROOT_FORK_HEIGHT = 100_000` (§5.3). Di bawah height ini chain advance hanya melalui konsensus bytewise; di atasnya state root adalah bagian dari block hash dan divergensi apa pun membatalkan apply.
+
+### 6.2 Persistensi State
+
+State di-persist di MDBX [10] (`crates/sentrix-storage`), sebuah memory-mapped key-value store. Read amplification bersifat terbatas; write amplification bersifat constant-time per update leaf. Ukuran state tumbuh dengan jumlah akun unik, slot storage kontrak, dan record blok historis.
+
+Sebuah node memelihara persis satu file `chain.db`. Pemulihan dari korupsi (mis. `MDBX_MAP_FULL` dari tekanan disk, atau divergensi page-layout setelah operasi backup forensik) dilakukan dengan mengakuisisi salinan `chain.db` kanonis dari peer sehat melalui transfer byte-level; ini didokumentasikan secara operasional (§11.4) dan menghasilkan state bit-identik terlepas dari state node penerima sebelumnya.
+
+### 6.3 Light Client
+
+Sebuah light client melacak header blok namun tidak ada state penuh. Untuk memverifikasi sebuah fakta `f` (mis. saldo akun pada height `h`):
+
+1. Akuisisi `B_h.header.state_root` melalui rantai justifikasi BFT atau weak-subjectivity checkpoint terpercaya.
+2. Request bukti Merkle dari full node mana pun untuk leaf yang meng-encode `f` terhadap root `R = B_h.header.state_root`.
+3. Verifikasi bukti secara lokal; tolak jika root yang di-recompute tidak cocok.
+
+Ini membuat penggunaan di lingkungan terbatas (mobile, browser) feasible tanpa mempercayai full node spesifik mana pun. Protokol weak-subjectivity formal — termasuk distribusi checkpoint, cadensi refresh, dan tracking rotasi validator-set — adalah pekerjaan terbuka (§14).
+
+---
+
+## 7. Lapisan Jaringan
+
+### 7.1 Topologi
+
+Validator dan full node membentuk mesh libp2p (`crates/sentrix-network`). Penemuan peer menggunakan Kademlia DHT [12] dengan alamat seed peer untuk bootstrap. Setiap validator mempublikasikan record *validator advertisement* yang berisi multiaddr libp2p saat ini; advertisement di-gossip pada topic dedicated dan di-persist di DHT, memungkinkan validator memelihara route langsung untuk pesan BFT tanpa koordinasi eksternal.
+
+### 7.2 Topic Gossip
+
+| Topic | Payload | Audience |
+|---|---|---|
+| `sentrix/blocks/1` | Blok yang difinalisasi | Semua node; receiver memvalidasi dan apply melalui `STF` |
+| `sentrix/txs/1` | Transaksi user | Semua node; di-forward sampai diinklusikan di blok yang diusulkan |
+| `sentrix/bft/1` | Proposal, prevote, precommit | Hanya validator; full node mengabaikan |
+| `sentrix/validator-adverts/1` | Validator advertisement | Validator; digunakan untuk memelihara route langsung |
+
+### 7.3 Sekuens Bootstrap
+
+```
+1. Connect to seed peers (configured at startup).
+2. Run Kademlia DHT walk to populate the peer routing table.
+3. Request the chain head from peers; identify the head with the
+   longest stake-weighted justification chain.
+4. Sync block-by-block from a peer until the local height matches
+   the network head.
+5. Subscribe to gossip topics; if a validator, begin participating
+   in BFT for the next round.
+```
+
+Sebuah node di belakang chain tip menerapkan blok secara linier. Sebuah node di depan tip tidak dapat eksis kecuali melalui ekuivokasi Byzantine; bukti ekuivokasi itu sendiri adalah pelanggaran yang dapat di-slash (§9.1).
+
+### 7.4 Transport
+
+Transport cross-validator berjalan di atas IPv4 publik dengan libp2p Noise yang diproteksi TLS; deployment mesh WireGuard sebelumnya di-retire 2026-04-30 demi transport public-IP. Host validator membuka satu port TCP inbound untuk libp2p (default 30303). Endpoint RPC dan WebSocket diekspos melalui proses HTTP terpisah yang di-front oleh edge reverse proxy.
+
+---
+
+## 8. Tokenomik
+
+### 8.1 Pasokan
+
+Pasokan maksimum adalah `MAX_SUPPLY_V2 = 315,000,000 SRX = 3.15 × 10¹⁶ sentri`, di-enforce post `TOKENOMICS_V2_HEIGHT`. Pre-fork cap-nya adalah `MAX_SUPPLY_V1 = 210M SRX`; fork mengangkat cap dan mengubah cadensi halving. Tidak ada mekanisme (governance, hard fork, atau lainnya) yang dapat mengubah cap post-fork.
+
+### 8.2 Block Reward dan Halving
+
+Block reward dasar adalah `BLOCK_REWARD = 1 SRX = 100_000_000 sentri`. Reward halving setiap `HALVING_INTERVAL_V2 = 126_000_000` blok (~4 tahun pada blok 1 detik, dimodelkan setelah cadensi halving Bitcoin). Pre-fork interval-nya adalah `HALVING_INTERVAL_V1 = 42_000_000` blok (~1.33 tahun). Secara formal:
+
+```
+era(h)         = ⌊h / HALVING_INTERVAL_V2⌋  for h ≥ TOKENOMICS_V2_HEIGHT
+block_reward(h) = BLOCK_REWARD × 2^{−era(h)}
+```
+
+Kurva pasokan disinflationary konvergen secara asimtotik ke cap; dikombinasikan dengan premine 63M (§8.4), pasokan maksimum mendekati 315M dalam horizon multi-dekade.
+
+### 8.3 Mekanisme Fee
+
+Setiap transaksi membayar fee. Model fee berbeda menurut rel:
+
+- **Native rail:** `fee = MIN_TX_FEE = 10_000 sentri = 10⁻⁴ SRX` flat, terlepas dari operasi.
+- **EVM rail:** `fee = gas_used × (base_fee + tip)` per EIP-1559. `base_fee` menyesuaikan setiap blok untuk mempertahankan target gas usage; `tip` ditetapkan pengirim.
+
+Pembagian fee (per blok, dikomputasi atas `total_fee = Σ tx.fee` lintas transaksi yang admissible):
+
+```
+burn_share      = total_fee.div_ceil(2)        // ceiling division
+validator_share = total_fee − burn_share       // floor(total_fee / 2)
+```
+
+Burn share *didebit dari pengirim namun tidak pernah dikreditkan ke mana pun*; ia meninggalkan pasokan sepenuhnya. Akuntansi `total_burned_srx` chain melacak burn kumulatif untuk telemetri (`/chain/info`). Validator share dikreditkan langsung ke saldo proposer (`coinbase_validator`), langsung dapat dibelanjakan. Untuk fee yang nilainya ganjil burn menerima sentri ekstra (ceiling) — ini menjaga split integer yang bersih lintas semua fee tanpa kerugian rounding.
+
+Block subsidy *tidak* dibayarkan sebagai fee; ia mengikuti jalur terpisah (§8.5) sehingga issuance masuk sirkulasi hanya saat di-claim.
+
+### 8.4 Premine
+
+Sebuah premine sebesar `63M SRX = 20% dari MAX_SUPPLY_V2` dialokasikan saat genesis lintas empat akun. Alokasi bersifat publik dan dapat diverifikasi on-chain:
+
+| Peran | Jumlah | Alamat |
+|---|---|---|
+| Founder | 21M SRX | `0x5b5b06688dcdbe532353ac610aaff41af825279d` |
+| Early Validator | 10.5M SRX | `0x328d56b8174697ef6c9e40e19b7663797e16fa47` |
+| Ecosystem Fund | 21M SRX | `0xeb70fdefd00fdb768dec06c478f450c351499f14` |
+| Reserve | 10.5M SRX | `0x2578cad17e3e56c2970a5b5eab45952439f5ba97` |
+
+Sisa 80% (252M SRX) diterbitkan melalui block reward sepanjang kurva halving. Kebijakan sub-alokasi operasional (program hibah, listing, komitmen vesting) berada di luar spesifikasi ini; lihat dokumen tokenomik publik di `sentrixchain.com/docs/tokenomics`.
+
+### 8.5 Routing Reward
+
+Block subsidy *tidak* dibayarkan langsung ke proposer. Ia di-mint ke alamat sistem `PROTOCOL_TREASURY = 0x00…0002` di akhir setiap blok (di-gate oleh `VOYAGER_REWARD_V2_HEIGHT`), kemudian diakumulasikan pro-rata ke *precommitter* dari blok parent:
+
+```
+for v in B_{h-1}.justification.precommits:
+    pending_rewards[v] += subsidy × s(v) / Σ s(precommitters)
+```
+
+Seorang delegator mewarisi akrual validatornya dikurangi commission rate yang dipublikasikan oleh validator. Validator dan delegator menarik `pending_rewards` ke saldo yang dapat dibelanjakan melalui operasi staking eksplisit `ClaimRewards`.
+
+Pemisahan ini memiliki dua konsekuensi:
+
+1. **Invariansi pasokan.** SRX baru masuk sirkulasi hanya saat di-claim, memberikan batas akuntansi yang bersih antara issuance dan distribusi. Pasokan beredar pada height `h` adalah `total_minted(h) − total_burned(h) − Σ pending_rewards`.
+2. **Isolasi pendapatan proposer.** Fee share proposer dapat dibelanjakan real-time, mendecouple propose-incentive dari sign-incentive.
+
+---
+
+## 9. Ekonomi Validator & Slashing
+
+### 9.1 Kondisi Slashing
+
+| Pemicu | Bukti | Slash | Jail |
+|---|---|---|---|
+| Ekuivokasi (double-sign) | Dua vote yang ditandatangani (prevote atau precommit) pada blok yang konflik di `(h, r)` yang sama | `DOUBLE_SIGN_SLASH_BP = 2_000` (20% dari self-stake) | Permanen (tombstone) |
+| Downtime | Menandatangani `< MIN_SIGNED_PER_WINDOW = 4_320` blok dalam window trailing `LIVENESS_WINDOW = 14_400` blok (~4 jam pada 1 s) | `DOWNTIME_SLASH_BP = 10` (0.1%) | `DOWNTIME_JAIL_BLOCKS = 600` blok (~10 menit) |
+
+SRX yang di-slash dihancurkan (didebit dari stake validator namun tidak dikreditkan ke mana pun — mekanisme yang sama dengan fee burn, §8.3). Ini menjaga invarian pasokan dan menghindari insentif buruk berupa validator yang diuntungkan dari slashing peer.
+
+Threshold downtime sengaja permisif — `4_320 / 14_400 = 30%` minimum signed — sehingga sebab-sebab sah (reboot kernel, gangguan jaringan singkat) tidak menyebabkan jail. Pelanggar berulang mengakumulasi jailing; stake yang tidak ter-bond mereka decay seiring waktu.
+
+Dispatch jail yang dikomputasi konsensus (`StakingOp::JailEvidenceBundle`) di-gate oleh `JAIL_CONSENSUS_HEIGHT = u64::MAX` (disabled). Jailing manual — operator submit operasi admin `Jail` terhadap validator yang divergen atau berperilaku buruk — tetap menjadi jalur operasional sampai dispatch konsensus diverifikasi deterministik lintas cluster.
+
+### 9.2 Pendapatan Validator
+
+Untuk validator dengan fraksi stake `f = s(v) / Σ s(Vₐ)` dan commission rate `c`:
+
+```
+expected_revenue_per_epoch ≈ EPOCH_LENGTH × subsidy × f
+                             × (1 − fraction_delegated × (1 − c))
+                          + 0.5 × f × epoch_fees
+```
+
+Term pertama (pendapatan signing) terakumulasi ke `pending_rewards` dan di-escrow sampai validator dan delegator-nya claim. Term kedua (pendapatan proposing) dikreditkan ke saldo proposer yang dapat dibelanjakan langsung setiap blok. Di bawah seleksi proposer round-robin (§4.2), setiap validator aktif mengusulkan tepat `1/n` blok dalam ekspektasi per epoch.
+
+### 9.3 Penalti Liveness
+
+Sebuah validator yang menandatangani lebih sedikit dari `MIN_SIGNED_PER_WINDOW` blok dalam `LIVENESS_WINDOW` trailing di-jail: dihapus dari active set dan di-slash `DOWNTIME_SLASH_BP / 10000` dari self-stake. Re-entry memerlukan transaksi `Unjail` eksplisit setelah `DOWNTIME_JAIL_BLOCKS`. Jika slashing menurunkan self-stake di bawah minimum yang dikonfigurasi genesis, `AddSelfStake` (§4.1) diperlukan sebelum re-entry.
+
+---
+
+## 10. Model Performa
+
+### 10.1 Throughput
+
+Kapasitas transaksi per-blok dibatasi oleh `MAX_TX_PER_BLOCK = 5_000`. Dengan waktu blok `BLOCK_TIME_SECS = 1`, plafon throughput yang dipaksakan protokol adalah
+
+```
+TPS_max = MAX_TX_PER_BLOCK / BLOCK_TIME_SECS = 5_000 tx/s
+```
+
+Throughput yang dapat dicapai pada deployment spesifik mana pun dibatasi di bawah ini oleh:
+
+```
+TPS_actual = min(TPS_max, TPS_exec, TPS_net)
+```
+
+di mana:
+
+- `TPS_exec` adalah rate di mana satu validator dapat memverifikasi, men-dispatch, dan menerapkan transaksi secara sequential (D1, §5.2). Sequential apply adalah binding constraint; rate-nya bergantung pada mix transaksi (op native lebih murah daripada call EVM; biaya EVM berskala dengan kompleksitas opcode), CPU validator, dan latency I/O trie. Tidak ada angka benchmark publik yang dikodifikasi dalam dokumen ini; kerangka prototype benchmark (§12) adalah jalan untuk memproduksinya.
+- `TPS_net` adalah rate di mana gossipsub dapat mempropagasi proposal dan vote dalam `BLOCK_TIME_SECS`. Ia dibatasi oleh `bandwidth × BLOCK_TIME / |B|`. Untuk `MAX_TX_PER_BLOCK = 5_000` pada ukuran transaksi tipikal, ini berada jauh di dalam bandwidth deployment standar.
+
+Untuk wilayah operasi target (`n = 4` hingga `n = 21`), `TPS_exec` adalah binding constraint. Parallel execution masa depan (§5.6) adalah jalan untuk merelaksasinya.
+
+### 10.2 Latency
+
+Latency per-blok pada happy path ter-dekomposisi menjadi:
+
+```
+T_block = T_propose + T_prevote + T_precommit + T_apply
+```
+
+Setiap dari tiga term pertama *dibatasi atas* oleh timeout fase-nya (§4.2) — `propose_timeout(0) = 20_000 ms`, `prevote_timeout(0) = 12_000 ms`, `precommit_timeout(0) = 12_000 ms` — namun pada operasi normal selesai jauh di bawah timeout. Secara empiris, pada mesh yang sehat, chain memproduksi blok pada target 1 s, mengimplikasikan durasi fase tipikal pada orde puluhan hingga ratusan milidetik rendah. `T_apply` adalah waktu untuk memverifikasi signature, men-dispatch transaksi, memutasi state, dan melakukan commit root trie.
+
+Latency end-to-end yang diobservasi oleh submitter transaksi adalah
+
+```
+T_user = T_mempool + T_block_inclusion + T_finalization
+       ≤ 1 round   + 1 block            + 1 block
+```
+
+di mana `T_mempool` adalah waktu sampai proposer menguras transaksi. Di bawah kondisi non-adversarial proposer melihat transaksi sebelum menyusun blok berikutnya, dan `T_user` didominasi oleh `T_block`.
+
+Round-skip memperpanjang latency end-to-end secara proporsional. Setelah `r` ronde gagal pada satu height, biaya wall-clock kumulatif dibatasi oleh `Σ (propose_timeout(i) + prevote_timeout(i) + precommit_timeout(i))` untuk `i ∈ [0, r]`, yang menjenuh pada `3 × 30_000 ms = 90 s` per ronde sekali timeout mencapai cap.
+
+### 10.3 Kompleksitas Pesan
+
+Per ronde, `2n + 1` pesan konsensus di-originate (satu proposal, `n` prevote, `n` precommit). Total byte yang ditransfer melintas mesh berskala `O(n²)` di kasus terburuk untuk delivery all-to-all naif; dengan mesh gossipsub optimal `O(n log n)`.
+
+| `n` | Pesan originating per ronde | Transfer mesh kasus terburuk |
+|---|---|---|
+| 4 | 9 | `O(16)` |
+| 21 | 43 | `O(441)` |
+| 100 | 201 | `O(10⁴)` |
+
+Untuk wilayah operasi target (`n ≤ 21`), volume pesan per-ronde kecil dan berada jauh di dalam envelope throughput gossip libp2p.
+
+### 10.4 Batas Skalabilitas
+
+Arsitektur single-shard memaksakan:
+
+- **Pertumbuhan state** linier dalam akun unik dan slot storage kontrak. Ukuran bukti `O(log N)` dan biaya update `O(log N)` dari trie berarti pertumbuhan ukuran state adalah faktor pembatas untuk kebutuhan disk node horizon panjang.
+- **Bandwidth per validator** adalah `O(n × |B|)` per blok karena fan-out gossip.
+- **Compute per blok** adalah `O(|B|)` sequential apply; future parallel apply (§5.6) menurunkan ini menjadi `O(|B| / p)` untuk paralelisme `p`-arah.
+- **Ukuran validator-set** di-cap pada `MAX_ACTIVE_VALIDATORS = 21` oleh modul staking. Di luar ini, active set berotasi melalui ranking stake; kandidat di luar top 21 tidak berpartisipasi dalam konsensus.
+
+Batas-batas ini membingkai envelope operasi protokol: Sentrix dirancang untuk penyelesaian retail-grade pada hitungan validator dalam puluhan rendah, bukan untuk komputasi general-purpose ribuan-validator. Sharding dan rollup L2 berada di luar cakupan spesifikasi saat ini.
+
+---
+
+## 11. Penanganan Kegagalan
+
+Bagian ini menentukan perilaku di bawah empat kelas kegagalan yang telah ditemui oleh deployment produksi.
+
+### 11.1 Partisi Jaringan
+
+**Skenario.** Set validator terpecah menjadi dua grup karena kegagalan jaringan transien. Grup `A` memiliki fraksi stake `α`, grup `B` memiliki `1 − α`.
+
+**Perilaku protokol:**
+
+- Jika `α < 2/3` dan `1 − α < 2/3`: tidak ada grup yang mencapai `Q`. Keduanya halt pada height partisi. Round-skip (§4.4) memperpanjang timeout hingga cap 30 s namun tidak dapat menyelesaikan konsensus. Setelah `MAX_ROUND = 100` ronde gagal berturut-turut, chain dianggap stalled dan intervensi operator diperlukan.
+- Jika `α ≥ 2/3`: grup `A` melanjutkan finalisasi blok; grup `B` halt.
+- Pemulihan saat heal: grup minoritas mengamati rantai justifikasi yang dibobotkan stake yang lebih panjang dari peer mayoritas, memvalidasinya secara lokal melalui properti SMR (§2.4), dan rejoin dengan replay blok kanonis.
+
+**Aksi operator:** tidak diperlukan jika partisi heal secara natural. Jika partisi bersifat permanen (mis. host validator irrecoverable), operator mengkoordinasikan rsync chain-state dari peer kanonis (§11.4).
+
+### 11.2 Ekuivokasi Leader
+
+**Skenario.** Sebuah proposer Byzantine menandatangani dua proposal berbeda di `(h, r)` yang sama — `Proposal(h, r, B)` dan `Proposal(h, r, B′)` dengan `H(B) ≠ H(B′)`.
+
+**Perilaku protokol:**
+
+- Kedua proposal mempropagasi ke subset validator berbeda (pilihan adversary Byzantine). Validator jujur yang menerima hanya satu proposal melakukan prevote untuknya; validator jujur yang menerima keduanya melakukan prevote `⊥`.
+- Safety berlaku (Teorema 1, §4.6): tidak ada dua validator jujur yang melakukan precommit terhadap blok yang konflik karena kondisi polka tidak dapat berlaku secara simultan untuk `H(B)` dan `H(B′)` ketika ≥ `n − f` stake jujur eksis.
+- Kedua proposal yang ditandatangani membentuk *bukti ekuivokasi*. Setiap node jujur yang mengamati keduanya melakukan gossip transaksi `StakingOp::SubmitEvidence` yang berisi kedua signature.
+
+**Slashing.** Pada inklusi bukti yang valid, proposer di-slash `DOUBLE_SIGN_SLASH_BP / 10_000 = 20%` dari self-stake dan di-tombstone (banned permanen dari re-entry).
+
+### 11.3 Downtime Validator
+
+**Skenario.** Sebuah validator offline (reboot kernel, outage jaringan, kegagalan hardware) selama durasi tertentu.
+
+**Perilaku protokol:**
+
+- Selama downtime, validator tidak menandatangani prevote atau precommit. Validator lain melanjutkan jika `≥ Q` tetap online.
+- Downtime dicatat terhadap moving window `LIVENESS_WINDOW = 14_400` blok. Sebuah validator yang menandatangani lebih sedikit dari `MIN_SIGNED_PER_WINDOW = 4_320` blok dalam window di-jail pada batas epoch berikutnya.
+- Jailing men-slash `DOWNTIME_SLASH_BP / 10_000 = 0.1%` dari self-stake dan menghapus validator dari active set selama `DOWNTIME_JAIL_BLOCKS = 600` blok (~10 menit pada blok 1 s).
+- Setelah durasi jail, validator dapat submit `StakingOp::Unjail` untuk re-enter active set, tergantung pada self-stake yang cukup; jika slashing menurunkan mereka di bawah minimum yang dikonfigurasi genesis, `StakingOp::AddSelfStake` diperlukan terlebih dahulu.
+
+**Efek cluster.** Jika `> f` validator simultan offline, chain stalls: `n − f − offline < Q`. Validator online yang tersisa melanjutkan proposing namun tidak dapat memfinalisasi. Pemulihan otomatis pada cukupnya validator yang kembali online. Fork `BFT_GATE_RELAX_HEIGHT` (§4.9) memperluas margin jail-cascade sekali diaktifkan.
+
+### 11.4 Pemulihan Chain Setelah Partisi
+
+**Skenario.** Sebuah partisi heal; sebuah partisi yang sebelumnya minoritas memiliki state stale, atau `chain.db` lokal sebuah node telah divergen pada level byte (mis. karena hard-fork mis-application atau operasi backup forensik yang misdirected).
+
+**Perilaku protokol:**
+
+1. BFT engine node stale mendeteksi bahwa peer melaporkan height yang difinalisasi lebih tinggi.
+2. Node masuk ke *block-sync mode*: request blok dari peer dalam batch, validasi setiap melalui `STF`, dan apply secara berurutan.
+3. Konvergensi state dijamin oleh properti SMR: menerapkan blok yang sama terhadap state sebelumnya yang sama menghasilkan state penerus yang sama.
+4. Setelah node stale mencapai head jaringan, ia rejoin konsensus.
+
+**Pemulihan sisi-operator untuk divergensi chain.db level-byte.** Ketika replay `STF` saja tidak dapat membawa node ke byte-parity (mis. karena node stale telah men-commit state divergen di bawah fork mis-apply, meninggalkan chain.db-nya secara permanen di luar jalur kanonis), operator menyalin `chain.db` kanonis dari peer sehat:
+
+```
+operator# systemctl stop sentrix
+operator# # PULL canonical → stale (NOT push)
+operator# ssh canonical-peer 'tar -C /opt/sentrix/data -czf - chain.db' \
+            | tar -C /opt/sentrix/data -xzf -
+operator# chown -R sentriscloud:sentriscloud /opt/sentrix/data/chain.db
+operator# systemctl start sentrix
+```
+
+Arah transfer penting: peer kanonis adalah source; node stale adalah destination. Post-recovery, paritas MD5 harus dikonfirmasi lintas cluster (`md5sum /opt/sentrix/data/chain.db/*.dat` di setiap validator harus memproduksi hash identik untuk file kanonis). Detail runbook produksi dan prosedur yang teruji insiden tinggal di dokumentasi operator.
+
+---
+
+## 12. Kerangka Benchmark
+
+Bagian ini menentukan benchmark prototype untuk mengukur throughput dan latency execution-engine. Implementasi dimaksudkan tinggal di crate `tools/bench-tps/` di workspace.
+
+### 12.1 Sequential Engine (Referensi)
+
+```rust
+// Reference implementation matching the production STF Pass 2 exactly.
+// Measures the baseline throughput against which parallel engines compare.
+
+fn run_sequential_bench(state: &mut State, txs: &[Transaction]) -> Metrics {
+    let t0 = Instant::now();
+    let mut applied = 0;
+    let mut latencies = Vec::with_capacity(txs.len());
+
+    for tx in txs {
+        let t_start = Instant::now();
+
+        // Pass 1: signature verification
+        if !verify_signature(tx) { continue; }
+
+        // Pass 2: nonce/balance check
+        if state.nonce(tx.from) != tx.nonce { continue; }
+        if state.balance(tx.from) < tx.fee + tx.amount { continue; }
+
+        // Fee handling: ceil/floor split, burn debit (no credit)
+        let burn_share = tx.fee.div_ceil(2);
+        let validator_share = tx.fee - burn_share;
+        state.deduct(tx.from, tx.fee);
+        state.credit(PROPOSER_ADDR, validator_share);
+        // burn_share leaves supply entirely; track for accounting
+        state.total_burned += burn_share;
+
+        // Dispatch
+        match dispatch(tx) {
+            Ok(_) => apply(state, tx),
+            Err(_) => { /* fee debit + burn stand; payload reverts */ }
+        }
+        state.increment_nonce(tx.from);
+
+        latencies.push(t_start.elapsed());
+        applied += 1;
+    }
+
+    let elapsed = t0.elapsed();
+    Metrics {
+        engine: "sequential",
+        applied,
+        elapsed,
+        tps: applied as f64 / elapsed.as_secs_f64(),
+        p50_latency: percentile(&mut latencies, 50),
+        p99_latency: percentile(&mut latencies, 99),
+    }
+}
+```
+
+### 12.2 Batched Engine (Optimistic Parallel)
+
+```rust
+// Batched engine: speculatively parallelizes transactions whose
+// declared read/write sets do not conflict. On conflict, retries
+// the offending transaction sequentially in commit order.
+//
+// Preserves D1 (commit order = block order) by accumulating writes
+// in a per-tx WriteSet and merging into canonical state in order.
+
+fn run_batched_bench(state: &mut State, txs: &[Transaction], batch_size: usize) -> Metrics {
+    let t0 = Instant::now();
+    let mut applied = 0;
+    let mut latencies = Vec::with_capacity(txs.len());
+
+    for chunk in txs.chunks(batch_size) {
+        let graph = build_dependency_graph(chunk);
+        let layers: Vec<Vec<&Transaction>> = topological_layers(&graph);
+
+        for layer in layers {
+            // Execute layer in parallel — each tx writes into its own WriteSet
+            let writesets: Vec<WriteSet> = layer
+                .par_iter()
+                .map(|tx| {
+                    let t_start = Instant::now();
+                    let ws = execute_speculative(state, tx);
+                    latencies.push(t_start.elapsed());
+                    ws
+                })
+                .collect();
+
+            // Validate no write-write conflicts within layer
+            for (i, ws_i) in writesets.iter().enumerate() {
+                for ws_j in &writesets[..i] {
+                    if ws_i.conflicts(ws_j) {
+                        // Re-execute conflicting tx serially against committed
+                        // state to maintain D1.
+                        let tx_i = layer[i];
+                        let _ws_correct = execute_speculative(state, tx_i);
+                        // Replace ws_i with ws_correct in the apply order...
+                    }
+                }
+            }
+
+            // Commit in block order
+            for ws in writesets {
+                state.merge(ws);
+                applied += 1;
+            }
+        }
+    }
+
+    let elapsed = t0.elapsed();
+    Metrics {
+        engine: "batched",
+        applied,
+        elapsed,
+        tps: applied as f64 / elapsed.as_secs_f64(),
+        p50_latency: percentile(&mut latencies, 50),
+        p99_latency: percentile(&mut latencies, 99),
+    }
+}
+```
+
+### 12.3 Metrik
+
+Setiap run menghasilkan:
+
+| Metrik | Definisi |
+|---|---|
+| `applied` | Jumlah transaksi yang berhasil diaplikasikan (debit fee + dispatch + mutasi state) |
+| `elapsed` | Waktu wall-clock dari tx pertama diterima hingga tx terakhir di-commit |
+| `tps` | `applied / elapsed` (transaksi per detik) |
+| `p50_latency` | Median waktu eksekusi per-tx (verify + dispatch + apply) |
+| `p99_latency` | Persentil ke-99 waktu eksekusi per-tx |
+| `conflict_rate` | (Hanya batched) Fraksi tx yang dieksekusi spekulatif yang di-abort karena write-conflict |
+
+Run komparatif (sequential vs. batched pada `batch_size` yang bervariasi) mengkarakterisasi fungsi speedup dan mengidentifikasi regime konflik di mana paralelisme degradasi menjadi overhead serial.
+
+---
+
+## 13. Analisis Komparatif
+
+Kami membandingkan Sentrix dengan empat chain kontemporer di sepanjang tiga sumbu: model eksekusi, desain konsensus, dan pendekatan skalabilitas.
+
+### 13.1 Model Eksekusi
+
+| Chain | Model | Mekanisme determinisme | Paralelisme |
+|---|---|---|---|
+| **Ethereum** | Sequential EVM (post-Merge) | Block-order serial apply | Tidak ada di L1 |
+| **Solana** | Parallel SVM (Sealevel) | Access list akun yang dideklarasikan per tx | Native parallel; dibatasi akurasi deklarasi access-set |
+| **Monad** | Optimistic parallel EVM | Eksekusi spekulatif ala Block-STM + serial commit | Native parallel; konflik diresolusi pada commit |
+| **Polygon (PoS)** | Sequential EVM | Block-order serial apply | Tidak ada di lapisan chain PoS |
+| **Sentrix** | Sequential EVM + Native rail | Block-order serial apply (D1, §5.2) | Tidak ada hari ini; optimistic parallel terjadwal (§5.6) |
+
+Sumbu dominan yang membedakan Sentrix adalah *native rail* — operasi umum (penerbitan token, staking, koordinasi validator) bypass EVM sepenuhnya dan apply langsung terhadap state kanonis. Ini serupa dalam jiwa dengan modul Cosmos SDK namun co-resident dengan dispatch EVM di node yang sama.
+
+### 13.2 Desain Konsensus
+
+| Chain | Konsensus | Finalitas | Validator set | Kompleksitas pesan per-ronde |
+|---|---|---|---|---|
+| **Ethereum** | Casper FFG + LMD-GHOST | Probabilistik (2 epoch ≈ 12.8 menit) | ~1M (32 ETH per validator) | `O(n)` per slot via committee |
+| **Solana** | TowerBFT + Proof of History | Probabilistik ≈ 13s | rendah ribuan | `O(n)` per slot |
+| **Monad** | MonadBFT (turunan HotStuff) | Single-block | Bootstrap permissioned → permissionless | `O(n)` per ronde (threshold-aggregated) |
+| **Polygon (PoS)** | Heimdall + Bor (Tendermint + Geth fork) | ~2 s nominal, ~4 menit Ethereum-checkpointed | ~100 | `O(n²)` per ronde |
+| **Sentrix** | Voyager BFT (turunan Tendermint) + DPoS | Single-block | DPoS terbuka, di-rank by stake, di-cap pada `MAX_ACTIVE_VALIDATORS = 21` | `O(n²)` per ronde, `O(n log n)` dengan gossip optimal |
+
+Sentrix paling dekat dalam silsilah dengan chain PoS Polygon (keduanya adalah chain BFT turunan Tendermint yang menjalankan rel EVM). Pilihan yang membedakan di Sentrix adalah native rail yang co-located dengan EVM dan coupling eksplisit antara seleksi validator DPoS dan jadwal proposer round-robin tunggal. View-change `O(n)` MonadBFT yang threshold-aggregated adalah pelarian yang notable dari keluarga Tendermint yang diikuti Sentrix.
+
+### 13.3 Pendekatan Skalabilitas
+
+| Chain | Strategi | Bottleneck | Batas praktis validator-set |
+|---|---|---|---|
+| **Ethereum** | L2 rollup (Optimistic + ZK) | Data availability L1; ukuran batch rollup | L1 sustainable di ~1M; chain L2 berkompetisi untuk blob space |
+| **Solana** | Vertical scaling (hardware lebih cepat, blok lebih besar) | Bandwidth jaringan + I/O state | rendah ribuan |
+| **Monad** | Pipelined parallel execution di single shard | Eksekusi single-shard masih dibatasi hardware | Kelas HotStuff ~100 |
+| **Polygon (PoS)** | Sidechain + zkEVM | Keamanan bridge + cadensi checkpoint | ~100 |
+| **Sentrix** | Vertikal (parallel exec terencana, §5.6) | Sequential apply + kompleksitas pesan BFT | `MAX_ACTIVE_VALIDATORS = 21` di-enforce |
+
+Pendekatan skalabilitas Sentrix cocok dengan envelope *kelas Tendermint*: validator puluhan rendah, finalitas single-block, vertical scaling dalam batas itu. Sharding dan rollup L2 berada di luar cakupan spesifikasi saat ini; jalan ke depan melalui model parallel-execution di §5.6 mengatasi bottleneck sequential-apply tanpa mengubah konsensus.
+
+### 13.4 Ringkasan Posture
+
+Desain Sentrix paling akurat dideskripsikan sebagai: chain BFT Tendermint yang kompatibel-EVM single-shard dengan rel operasi native co-located dan kebijakan moneter capped-supply deflasioner. Tidak ada properti ini yang novel secara terisolasi; kontribusinya adalah kombinasi, determinasi untuk ship sebagai single small Rust binary, dan kesederhanaan operasional satu proses per host validator.
+
+---
+
+## 14. Open Problems
+
+Spesifikasi ini meninggalkan pertanyaan-pertanyaan berikut dengan sengaja terbuka. Mereka dilist secara jujur agar reviewer independen dapat menempatkan engineering frontier protokol.
+
+1. **Pembuktian determinisme parallel execution.** §5.6 mendeskripsikan model optimistic-concurrency dalam outline. Sebuah pembuktian rigorous bahwa scheduler yang diusulkan menghasilkan state yang tidak dapat dibedakan dari eksekusi sequential urutan-`B.txs` (D1, §5.2) diperlukan sebelum deployment.
+2. **Protokol weak-subjectivity light-client.** §6.3 mengasumsikan checkpoint terpercaya. Skema formal — termasuk distribusi checkpoint, cadensi refresh ≤ periode unbonding, dan tracking rotasi validator-set — diperlukan.
+3. **Atomisitas cross-rail.** Sebuah transaksi yang merentang native rail dan EVM rail (mis. contract call yang men-trigger operasi staking native) saat ini menggunakan gateway sistem. Sebuah jaminan atomisitas formal — baik kedua efek commit atau tidak ada — diinginkan.
+4. **Aktivasi NFT TokenOp.** Format wire SRC-721 + SRC-1155 stabil di `crates/sentrix-primitives/src/transaction.rs`. Lapisan dispatch + storage Pass-2 belum diimplementasikan; aktivasi via `NFT_TOKENOP_HEIGHT` tetap di-gate pada `u64::MAX` sampai keduanya ship.
+5. **Jail yang dikomputasi konsensus.** `JAIL_CONSENSUS_HEIGHT` di-gate pada `u64::MAX` menunggu fix root cause non-determinisme; bug menyala dua kali di mainnet (2026-04-29, 2026-04-30) sebelum gate dikembalikan ke disabled. Jailing manual tetap menjadi jalur operasional.
+6. **Retirement fork-gate transfer-value EVM.** `EVM_VALUE_TRANSFER_HEIGHT` di-gate pada `u64::MAX` setelah regresi di v2.1.49 menghasilkan divergensi eager-write. Fork-gate (diperkenalkan di v2.1.50) membuat perilaku baru dapat diaktifkan on demand; retirement permanen dari gate menunggu reproducer + fix yang bersih.
+7. **Diversitas multi-implementation.** Protokol saat ini memiliki satu implementasi Rust. Spesifikasi pada level detail yang diberikan ini adalah langkah pertama menuju re-implementasi independen; diversitas client konkret adalah tujuan horizon panjang.
+8. **Vesting Founder on-chain.** Per §8.4, alokasi Founder tidak memiliki schedule vesting on-chain; vesting adalah komitmen sosial publik. Sebuah kontrak schedule linier non-revocable yang di-deploy via `SentrixSafe` ada di backlog operasional.
+
+Open problem ini tidak memengaruhi safety atau liveness deployment produksi saat ini. Mereka merepresentasikan engineering frontier protokol.
+
+---
+
+## 15. Referensi
 
 [1] Nakamoto, S. (2008). *Bitcoin: A Peer-to-Peer Electronic Cash System.*
 
@@ -757,60 +1010,118 @@ Kami berharap untuk beroperasi dalam jangka waktu yang lama. Sentrix terbuka unt
 
 [6] Kwon, J., Buchman, E. (2019). *Cosmos: A Network of Distributed Ledgers.*
 
-[7] Fischer, M., Lynch, N., Paterson, M. (1985). *Impossibility of Distributed Consensus with One Faulty Process.*
+[7] Fischer, M., Lynch, N., Paterson, M. (1985). *Impossibility of Distributed Consensus with One Faulty Process.* JACM 32(2).
 
-[8] Castro, M., Liskov, B. (1999). *Practical Byzantine Fault Tolerance.*
+[8] Castro, M., Liskov, B. (1999). *Practical Byzantine Fault Tolerance.* OSDI.
 
-[9] Merkle, R. (1980). *Protocols for Public Key Cryptosystems.*
+[9] Merkle, R. (1980). *Protocols for Public Key Cryptosystems.* IEEE S&P.
 
-[10] MDBX. *Memory-mapped key-value store.* https://github.com/erthink/libmdbx
+[10] MDBX. *Memory-mapped key-value store.* `https://github.com/erthink/libmdbx`
 
-[11] libp2p. *Modular peer-to-peer networking stack.* https://libp2p.io
+[11] libp2p. *Modular peer-to-peer networking stack.* `https://libp2p.io`
 
 [12] Maymounkov, P., Mazières, D. (2002). *Kademlia: A Peer-to-peer Information System Based on the XOR Metric.*
 
-[13] Buterin, V. dkk. (2019). *EIP-1559: Fee market change for ETH 1.0 chain.*
+[13] Buterin, V. et al. (2019). *EIP-1559: Fee market change for ETH 1.0 chain.*
 
 [14] Buterin, V., Griffith, V. (2017). *Casper the Friendly Finality Gadget.*
 
-[15] Dwork, C., Lynch, N., Stockmeyer, L. (1988). *Consensus in the Presence of Partial Synchrony.*
+[15] Dwork, C., Lynch, N., Stockmeyer, L. (1988). *Consensus in the Presence of Partial Synchrony.* JACM 35(2).
+
+[16] Gelashvili, R. et al. (2023). *Block-STM: Scaling Blockchain Execution by Turning Ordering Curse to a Performance Blessing.* PPoPP.
+
+[17] Yin, M. et al. (2019). *HotStuff: BFT Consensus in the Lens of Blockchain.* PODC.
+
+[18] Monad Labs (2024). *Monad: Parallelizing the EVM.* Technical report.
 
 ---
 
-## Lampiran B — Pengungkapan Risiko
+## Appendix A — Parameter Protokol
 
-Lampiran ini mendokumentasikan risiko yang diketahui. Tidak bersifat exhaustive; pembaca harus melakukan due diligence sendiri.
+| Parameter | Nilai | Sumber |
+|---|---|---|
+| `BLOCK_TIME_SECS` | 1 | `crates/sentrix-core/src/blockchain.rs` |
+| `MAX_TX_PER_BLOCK` | 5,000 | `crates/sentrix-core/src/blockchain.rs` |
+| `MAX_TX_SIZE` | 128 KB | `crates/sentrix-core/src/mempool.rs` |
+| `MAX_MEMPOOL_SIZE` | 10,000 | `crates/sentrix-core/src/blockchain.rs` |
+| `MAX_MEMPOOL_PER_SENDER` | 100 | `crates/sentrix-core/src/blockchain.rs` |
+| `MEMPOOL_MAX_AGE_SECS` | 3,600 | `crates/sentrix-core/src/blockchain.rs` |
+| `BLOCK_REWARD` | 100,000,000 sentri (= 1 SRX) | `crates/sentrix-core/src/blockchain.rs` |
+| `MAX_SUPPLY_V2` | 315,000,000 SRX | `crates/sentrix-core/src/blockchain.rs` |
+| `HALVING_INTERVAL_V2` | 126,000,000 blok | `crates/sentrix-core/src/blockchain.rs` |
+| `MIN_TX_FEE` | 10,000 sentri | `crates/sentrix-primitives/src/transaction.rs` |
+| `STATE_ROOT_FORK_HEIGHT` | 100,000 | `crates/sentrix-primitives/src/block.rs` |
+| `MAX_ACTIVE_VALIDATORS` | 21 | `crates/sentrix-staking/src/staking.rs` |
+| `UNBONDING_PERIOD` | 201,600 blok | `crates/sentrix-staking/src/staking.rs` |
+| `EPOCH_LENGTH` | 28,800 blok (~8 jam) | `crates/sentrix-staking/src/epoch.rs` |
+| `LIVENESS_WINDOW` | 14,400 blok (~4 jam) | `crates/sentrix-staking/src/slashing/liveness.rs` |
+| `MIN_SIGNED_PER_WINDOW` | 4,320 blok | `crates/sentrix-staking/src/slashing/liveness.rs` |
+| `DOWNTIME_JAIL_BLOCKS` | 600 | `crates/sentrix-staking/src/slashing/liveness.rs` |
+| `DOWNTIME_SLASH_BP` | 10 (0.1%) | `crates/sentrix-staking/src/slashing/liveness.rs` |
+| `DOUBLE_SIGN_SLASH_BP` | 2,000 (20%) | `crates/sentrix-staking/src/slashing/double_sign.rs` |
+| `PROPOSE_TIMEOUT_MS` | 20,000 (cap 30,000) | `crates/sentrix-bft/src/engine/timeouts.rs` |
+| `PREVOTE_TIMEOUT_MS` | 12,000 (cap 30,000) | `crates/sentrix-bft/src/engine/timeouts.rs` |
+| `PRECOMMIT_TIMEOUT_MS` | 12,000 (cap 30,000) | `crates/sentrix-bft/src/engine/timeouts.rs` |
+| `TIMEOUT_INCREMENT_MS` | 1,000 (propose), 2,000 (vote) | `crates/sentrix-bft/src/engine/timeouts.rs` |
+| `MAX_ROUND` | 100 | `crates/sentrix-bft/src/engine/timeouts.rs` |
+| `MAX_TIMEOUT_MS` | 30,000 | `crates/sentrix-bft/src/engine/timeouts.rs` |
+
+| Sentinel address | Nilai | Penggunaan |
+|---|---|---|
+| `TOKEN_OP_ADDRESS` | `0x0000…0000` | Routing TokenOp Native |
+| `STAKING_ADDRESS` | `0x0000…0100` | Routing StakingOp Native |
+| `PROTOCOL_TREASURY` | `0x0000…0002` | Operasi sistem + escrow reward |
+
+| Env var fork-gate | Default | Efek |
+|---|---|---|
+| `VOYAGER_FORK_HEIGHT` | `u64::MAX` | Rotasi proposer DPoS + finalitas BFT 3-fase |
+| `VOYAGER_EVM_HEIGHT` | `u64::MAX` | Embedded revm runtime untuk `eth_sendRawTransaction` |
+| `VOYAGER_REWARD_V2_HEIGHT` | `u64::MAX` | Coinbase routing ke PROTOCOL_TREASURY; reward di-claim |
+| `TOKENOMICS_V2_HEIGHT` | `u64::MAX` | Cap 315M + halving 126M (paritas BTC 4y pada blok 1 s) |
+| `BFT_GATE_RELAX_HEIGHT` | `u64::MAX` | BFT berjalan dengan `active ≥ ⌈2/3 × n⌉` alih-alih full mesh |
+| `ADD_SELF_STAKE_HEIGHT` | `u64::MAX` | Dispatch `StakingOp::AddSelfStake` aktif |
+| `JAIL_CONSENSUS_HEIGHT` | `u64::MAX` | Dispatch jail yang dikomputasi konsensus (saat ini disabled) |
+| `NFT_TOKENOP_HEIGHT` | `u64::MAX` | Dispatch SRC-721 + SRC-1155 (saat ini disabled) |
+| `EVM_VALUE_TRANSFER_HEIGHT` | `u64::MAX` | Plumbing transfer EVM tx.value (saat ini disabled) |
+
+Height aktivasi mainnet untuk gate ini dikelola operator melalui environment variable; nilai default (`u64::MAX`) berarti disabled sampai diset secara eksplisit.
+
+---
+
+## Appendix B — Pengungkapan Risiko
+
+Appendix ini mendokumentasikan risiko yang diketahui. Ini tidak eksaustif.
 
 **Risiko teknis.**
-- *Kelas non-determinisme konsensus.* Chain telah mengalami halt non-determinisme LivenessTracker yang memerlukan penonaktifan dispatch consensus-jail (`JAIL_CONSENSUS_HEIGHT=u64::MAX`). Jailing manual tetap operasional. Perbaikan permanen termasuk dalam scope sesi pengembangan fresh-brain mendatang.
-- *Risiko implementasi tunggal.* Chain memiliki satu implementasi Rust. Bug dalam implementasi tersebut dapat memengaruhi seluruh jaringan sampai di-patch. Diversitas multi-implementasi (model Bitcoin Core / btcd / Knots Bitcoin) tidak ada.
-- *Konsentrasi validator.* Active validator set kecil pada tahap ini. Perilaku Byzantine berkelanjutan oleh supermayoritas secara teoretis mungkin terjadi sampai active set tumbuh ke ukuran yang terdesentralisasi secara bermakna.
+- *Risiko single-implementation.* Chain memiliki satu implementasi Rust. Bug pada implementasi tersebut dapat memengaruhi seluruh jaringan sampai di-patch. Diversitas multiple-implementation tidak hadir.
+- *Konsentrasi validator selama bootstrap.* Set validator aktif kecil pada tahap ini. Perilaku Byzantine berkelanjutan oleh supermayoritas secara teoretis mungkin sampai active set tumbuh ke arah `MAX_ACTIVE_VALIDATORS = 21` dengan operator yang independen secara kredibel.
+- *Penundaan dispatch jail-konsensus.* `JAIL_CONSENSUS_HEIGHT` tetap di-gate pada `u64::MAX` menunggu fix root cause non-determinisme. Jailing manual tetap operasional.
+- *Fork-gate transfer-value EVM.* `EVM_VALUE_TRANSFER_HEIGHT` tetap di-gate pada `u64::MAX` menunggu reproducer + fix yang bersih untuk regresi divergensi eager-write yang memotivasi gate v2.1.50.
 
 **Risiko ekonomi.**
-- *Belum ada penemuan harga.* SRX saat ini tidak diperdagangkan di exchange atau DEX mana pun. Tidak ada harga pasar. Cap 315 juta adalah konstanta protokol, bukan valuasi pasar.
-- *Alokasi Founder dapat dikontrol unilateral.* Sampai SentrixSafe berkembang ke N-of-M dan/atau alokasi Founder di-vesting on-chain, alamat Founder dapat memindahkan 21 juta SRX kapan saja.
-- *Ketergantungan stablecoin/bridge.* Kasus penggunaan ekonomi-riil memerlukan counterpart stablecoin. Sampai protokol bridge di-deploy, Sentrix terisolasi dari ekonomi stablecoin yang lebih luas.
-
-**Risiko regulasi.**
-- *Lanskap regulasi Indonesia berkembang.* Bappebti (regulator komoditas berjangka Indonesia) memiliki kerangka untuk aset crypto yang terus berkembang. Sentrix beroperasi di lingkungan yang berkembang ini dan mungkin menghadapi persyaratan baru.
-- *Ketidakpastian lintas-yurisdiksi.* Holder dan validator di yurisdiksi berbeda menghadapi rezim regulasi berbeda yang mungkin mengklasifikasikan SRX atau aktivitas staking secara berbeda. Konsultasikan ke counsel lokal.
-- *Klasifikasi hukum sekuritas.* SRX dimaksudkan sebagai utility token untuk operasi chain (gas, staking, governance). Apakah yurisdiksi tertentu mengklasifikasikannya sebagai sekuritas tergantung pada hukum lokal dan bagaimana ditawarkan. Penulis bukan legal counsel.
+- *Alokasi Founder dapat dikontrol secara unilateral.* Sampai SentrixSafe diperluas ke N-of-M dan/atau alokasi Founder dimigrasikan ke kontrak vesting on-chain, alamat Founder dapat memindahkan 21M SRX kapan saja.
+- *Ketergantungan bridge untuk counterparty stablecoin.* Sampai protokol bridge di-deploy, Sentrix terisolasi dari ekonomi stablecoin yang lebih luas.
+- *Belum ada price discovery.* SRX saat ini tidak diperdagangkan di exchange atau DEX mana pun. Cap 315M adalah konstanta protokol, bukan valuasi pasar.
 
 **Risiko operasional.**
-- *Bus factor penulis tunggal.* Sentrix dibangun solo. Partisipasi berkelanjutan penulis tidak dijamin oleh kontrak apa pun. Resilience jangka panjang tergantung pada codebase yang cukup terbuka sehingga operator lain dapat menjalankan fork (transisi BUSL → Apache 2.0 setelah Change Date).
-- *Single point of failure infrastruktur.* Host validator, host explorer, konfigurasi DNS, situs dokumentasi—semua dipelihara secara operasional oleh penulis pada tahap ini. Desentralisasi lapisan operasional ini adalah objektif ke depan, bukan state saat ini.
+- *Bus factor single-author.* Sentrix dibangun solo. Partisipasi berkelanjutan penulis tidak dijamin oleh kontrak apa pun. Resiliensi jangka panjang bergantung pada codebase yang cukup terbuka sehingga operator lain dapat menjalankan fork (transisi BUSL → Apache 2.0 setelah Change Date).
+- *Single point of failure infrastruktur.* Host validator, host explorer, konfigurasi DNS, situs dokumentasi — semua dipelihara secara operasional oleh penulis pada tahap ini. Desentralisasi lapisan-lapisan ini adalah objektif forward.
 
-Daftar ini jujur, bukan exhaustive. Perilaku, kontrak, dan history chain bersifat publik; pembaca harus memverifikasi apa yang mereka pedulikan terhadap rekaman on-chain dan source code.
+**Risiko regulasi.**
+- *Klasifikasi securities-law.* SRX dimaksudkan sebagai utility token (gas, staking, governance). Apakah yurisdiksi spesifik mengklasifikasikannya sebagai security bergantung pada hukum lokal dan bagaimana ia ditawarkan.
+- *Ketidakpastian cross-jurisdictional.* Holder dan validator di yurisdiksi yang berbeda menghadapi rezim regulasi yang berbeda yang mungkin mengklasifikasikan SRX atau aktivitas staking secara berbeda. Konsultasikan counsel lokal.
+
+Daftar ini jujur, bukan eksaustif. Perilaku, kontrak, dan riwayat chain bersifat publik; pembaca harus memverifikasi apa yang mereka pedulikan terhadap record on-chain dan source code.
 
 ---
 
-## Lampiran C — Pemberitahuan Hukum
+## Appendix C — Notice Hukum
 
-Whitepaper ini adalah deskripsi protokol software. Ini bukan offering document, prospektus, solicitation investasi, atau nasihat finansial. SRX adalah utility token yang digunakan untuk membayar fee transaksi, mengamankan chain melalui staking, dan (di masa depan) berpartisipasi dalam governance. Mengakuisisi atau memegang SRX memerlukan risiko—teknis, ekonomi, regulasi, dan operasional—yang dijelaskan di Lampiran B.
+Whitepaper ini adalah deskripsi sebuah protokol software. Ini bukan dokumen penawaran, prospektus, solisitasi investasi, atau nasihat finansial. SRX adalah utility token yang digunakan untuk membayar fee transaksi, mengamankan chain melalui staking, dan (di masa depan) berpartisipasi dalam governance. Mengakuisisi atau memegang SRX membawa risiko — teknis, ekonomi, regulasi, dan operasional — yang dideskripsikan di Appendix B.
 
-Protokol Sentrix Chain adalah infrastruktur open-source di bawah Business Source License 1.1, bertransisi ke Apache 2.0 setelah Change Date yang ditentukan dalam file LICENSE. Siapa pun dapat menjalankan node, siapa pun dapat mengirim transaksi, siapa pun dapat beroperasi sebagai validator dengan tunduk pada persyaratan level-protokol yang dijelaskan di §7.5.
+Protokol Sentrix Chain bersifat open-source di bawah Business Source License 1.1, transitioning ke Apache 2.0 setelah Change Date yang ditentukan di file LICENSE. Siapa pun dapat menjalankan node, siapa pun dapat submit transaksi, siapa pun dapat beroperasi sebagai validator tergantung pada persyaratan tingkat-protokol yang dideskripsikan di §4.1 dan §9.
 
-Penulis tidak membuat representasi tentang harga pasar SRX di masa depan, adopsi ekosistem, hasil kemitraan, atau penerimaan regulasi. Pernyataan forward-looking di §12 (Arah ke Depan) menjelaskan intent, bukan jaminan.
+Penulis tidak membuat representasi tentang harga pasar SRX masa depan, adopsi ekosistem, hasil partnership, atau penerimaan regulasi.
 
 Pembaca bertanggung jawab atas kepatuhan terhadap hukum dan regulasi lokal mereka mengenai pemegangan, transaksi, dan operasi validator cryptocurrency.
 
@@ -818,14 +1129,14 @@ Pembaca bertanggung jawab atas kepatuhan terhadap hukum dan regulasi lokal merek
 
 ## Tentang Penulis
 
-**Satya Kwok** membangun Sentrix Chain solo dalam Rust. Karya sebelumnya dan keterlibatan penulis dapat diobservasi publik di GitHub (`@satyakwok`) dan melalui history commit terbuka proyek di `github.com/sentrix-labs/sentrix`. Penulis dapat dihubungi melalui channel yang tercantum di `sentrixchain.com` dan melalui issue tracker pada repositori kanonis.
+**Satya Kwok** membangun Sentrix Chain solo di Rust. Pekerjaan dan keterlibatan penulis sebelumnya dapat diobservasi publik di GitHub (`@satyakwok`) dan melalui riwayat commit terbuka proyek di `github.com/sentrix-labs/sentrix`. Penulis dapat dihubungi melalui channel yang terdaftar di `sentrixchain.com`.
 
-Keputusan untuk membangun Sentrix solo bersifat disengaja: tim kecil ship lebih cepat, keputusan lebih jelas, dan akuntabilitas tidak ambigu. Trade-off-nya adalah bus factor penulis (Lampiran B). Penulis berkomitmen untuk mengoperasikan Sentrix sebagai infrastruktur finansial yang tahan lama untuk masa depan tak terbatas, namun tidak berkomitmen pada timeline spesifik di luar jaminan level-protokol yang dikodifikasi dalam chain itu sendiri.
+Keputusan untuk membangun Sentrix solo bersifat deliberate: tim kecil ship lebih cepat, keputusan lebih jelas, dan akuntabilitas tidak ambigu. Trade-off-nya adalah bus factor penulis (Appendix B). Penulis berkomitmen untuk mengoperasikan Sentrix sebagai infrastruktur tahan lama untuk masa depan tak terbatas, namun tidak berkomitmen pada timeline spesifik di luar jaminan tingkat-protokol yang dikodifikasi di chain itu sendiri.
 
 ---
 
-## Penghargaan
+## Acknowledgments
 
-Sentrix adalah produk kerja seorang penulis tunggal selama periode yang sengaja dipadatkan. Penulis mengakui para insinyur yang membangun fondasi tempat Sentrix dikonstruksikan—core developer Ethereum, tim Cosmos dan Tendermint, komunitas Bitcoin, ekosistem Rust, para maintainer open-source dari pustaka kriptografis dan jaringan yang membuat proyek dengan cakupan ini feasible bagi seorang individu untuk mengambilnya.
+Sentrix adalah produk dari pekerjaan satu penulis. Penulis mengakui para engineer yang membangun fondasi di mana Sentrix dikonstruksi — para core developer Ethereum, tim Cosmos dan Tendermint, komunitas Bitcoin, ekosistem Rust, dan para maintainer open-source dari library kriptografis dan jaringan yang membuat proyek dengan cakupan ini feasible bagi seorang individu untuk mengerjakannya.
 
-Keputusan untuk membangun Sentrix dalam Rust, di atas EVM, dengan konsensus BFT ala Tendermint, tidak memerlukan penemuan komponen-komponen ini. Ia hanya memerlukan komposisinya. Inilah cara infrastruktur yang tahan lama dibangun: bukan dari ide-ide baru, melainkan dari penyusunan ide-ide yang sudah ada secara cermat.
+Keputusan untuk membangun Sentrix dalam Rust, di atas EVM, dengan konsensus BFT ala Tendermint, tidak memerlukan menemukan komponen-komponen tersebut. Itu hanya memerlukan komposisinya. Inilah cara infrastruktur tahan lama dibangun: bukan dari ide baru, melainkan dari pengaturan cermat ide-ide yang sudah ada.
