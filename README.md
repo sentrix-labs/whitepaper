@@ -1,5 +1,10 @@
 # Sentrix Whitepaper
 
+[![CI](https://github.com/sentrix-labs/whitepaper/actions/workflows/lint.yml/badge.svg)](https://github.com/sentrix-labs/whitepaper/actions/workflows/lint.yml)
+[![License](https://img.shields.io/github/license/sentrix-labs/whitepaper)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/sentrix-labs/whitepaper?include_prereleases&sort=semver)](https://github.com/sentrix-labs/whitepaper/releases/latest)
+
+
 Foundational paper for [Sentrix Chain](https://sentrixchain.com) — a Layer-1 blockchain.
 
 Author: Satya Kwok &lt;satya@sentrixchain.com&gt;
