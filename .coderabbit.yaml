@@ -1,0 +1,10 @@
+# Auto-review disabled to reduce noise on docs/marketing PRs.
+# On-demand review still works via @coderabbitai mention.
+language: en-US
+early_access: false
+reviews:
+  poem: false
+  auto_review:
+    enabled: false
+chat:
+  auto_reply: true
