@@ -20,6 +20,15 @@ Author: Satya Kwok &lt;satya@sentrixchain.com&gt;
 - [`sentrix-whitepaper-id.md`](sentrix-whitepaper-id.md) — Bahasa Indonesia Markdown (v1.3.0)
 - [`sentrix-whitepaper-id.html`](sentrix-whitepaper-id.html) — Bahasa Indonesia HTML (v1.3.0)
 
+### Litepaper
+
+A short, developer-facing on-ramp — the 5-minute read. The whitepaper is the
+engineer-auditable spec; the litepaper is the "is this worth my time" version.
+
+- [`sentrix-litepaper-en.md`](sentrix-litepaper-en.md) — English Markdown source
+- [`sentrix-litepaper-en.html`](sentrix-litepaper-en.html) — English HTML (browser-readable)
+- [`sentrix-litepaper-en.pdf`](sentrix-litepaper-en.pdf) — English PDF (shareable)
+
 ## Building from source
 
 ```bash

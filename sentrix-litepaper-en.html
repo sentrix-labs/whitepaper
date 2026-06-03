@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Sentrix Litepaper</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Sentrix Litepaper</h1>
+</header>
+<h1 id="sentrix-litepaper">Sentrix Litepaper</h1>
+<p><strong>An open-source, EVM-compatible Layer-1 written in
+Rust.</strong></p>
+<blockquote>
+<p>This is the short read. If you build software, you can finish it in a
+coffee break and know whether Sentrix is worth your time. The deep
+version — formal consensus proofs, performance model, failure handling —
+lives in the <a href="./sentrix-whitepaper-en.md">whitepaper</a>. This
+document is meant to be read by a human, not audited by one.</p>
+</blockquote>
+<hr />
+<h2 id="the-30-second-version">The 30-second version</h2>
+<p>You already know how to build on Sentrix.</p>
+<p>It runs the EVM. Your Solidity compiles unchanged. MetaMask connects.
+Hardhat deploys. Foundry tests. <code>ethers</code> and
+<code>viem</code> talk to it — in fact <code>viem</code> already ships
+Sentrix as a built-in chain, so you can target it without writing a
+single chain definition:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode ts"><code class="sourceCode typescript"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { sentrix<span class="op">,</span> sentrixTestnet } <span class="im">from</span> <span class="st">&quot;viem/chains&quot;</span><span class="op">;</span></span></code></pre></div>
+<p>Under that familiar surface is a chain built from scratch in Rust:
+one binary, one local database, BFT finality in a single block, and a
+monetary policy that no one — not the founder, not a DAO — can change
+after genesis.</p>
+<p>That’s the pitch. The rest of this document is why each of those
+choices was made, and what you actually get.</p>
+<hr />
+<h2 id="why-another-l1">Why another L1?</h2>
+<p>Most “new chain” pitches start with a number — more TPS, lower fees,
+some benchmark. Sentrix doesn’t lead with a number, because a number you
+can’t verify is marketing.</p>
+<p>It leads with three properties a builder can check in an
+afternoon:</p>
+<ol type="1">
+<li><p><strong>It’s the EVM you already know — not a lookalike.</strong>
+Sentrix executes through <code>revm</code>, the Rust EVM. There is no
+transpiler, no “Solidity-compatible” asterisk, no custom toolchain to
+learn. If your contract runs on Ethereum, it runs here.</p></li>
+<li><p><strong>It’s open source and written in one language.</strong>
+The entire node — consensus, execution, state, networking — is one Rust
+workspace at <a
+href="https://github.com/sentrix-labs/sentrix"><code>github.com/sentrix-labs/sentrix</code></a>.
+You can read it, audit it, and run it as a single process. No JVM, no
+Go-plus-C-plus-shell-scripts, no five-service docker stack to stand up a
+node.</p></li>
+<li><p><strong>The economics are fixed in code, not in a
+roadmap.</strong> Maximum supply, block reward, halving cadence, and fee
+burn are protocol constants. There is no governance lever to inflate the
+supply later. What you read in the tokenomics section is what the chain
+enforces — forever.</p></li>
+</ol>
+<p>Sentrix is not trying to be the fastest chain or the cheapest. It is
+trying to be the one a developer can fully understand, run themselves,
+and trust not to move the goalposts.</p>
+<hr />
+<h2 id="what-you-can-build-today">What you can build today</h2>
+<p><strong>Anything you’d build on an EVM chain.</strong> DEXes, tokens,
+NFT marketplaces, on-chain games, DeFi primitives — the contracts are
+identical. Point your existing deploy script at a Sentrix RPC URL and
+go.</p>
+<p><strong>On two rails, your choice.</strong> Sentrix has a native
+token rail (<code>TokenOp</code>) and the standard EVM rail
+(<code>ERC-20</code>). The native rail is a fixed-ABI, gas-free-ish
+flat-fee path for simple fungible tokens — cheap and deterministic. The
+EVM rail is the full programmable surface. Most teams use the EVM rail;
+the native rail exists for high-volume, low-complexity token operations
+that don’t need a contract VM.</p>
+<p><strong>With the tooling already in place:</strong></p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>You need</th>
+<th>Sentrix has</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Wallet</td>
+<td>MetaMask works out of the box (add network, or use the
+<code>viem</code> chain def)</td>
+</tr>
+<tr class="even">
+<td>Deploy / test</td>
+<td>Hardhat, Foundry, <code>ethers</code>, <code>viem</code> —
+unchanged</td>
+</tr>
+<tr class="odd">
+<td>Block explorer</td>
+<td><a href="https://scan.sentrixchain.com">scan.sentrixchain.com</a>
+(EIP-3091)</td>
+</tr>
+<tr class="even">
+<td>Contract verification</td>
+<td><a
+href="https://verify.sentrixchain.com">verify.sentrixchain.com</a>
+(Sourcify)</td>
+</tr>
+<tr class="odd">
+<td>Testnet funds</td>
+<td><a
+href="https://faucet.sentrixchain.com">faucet.sentrixchain.com</a></td>
+</tr>
+<tr class="even">
+<td>Canonical contracts</td>
+<td><a
+href="https://www.npmjs.com/package/@sentrix-labs/canonical-contracts"><code>@sentrix-labs/canonical-contracts</code></a>
+on npm</td>
+</tr>
+<tr class="odd">
+<td>Real-time data</td>
+<td>JSON-RPC, gRPC, and WebSocket (<code>eth_subscribe</code>)
+endpoints</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="how-it-works-without-the-proofs">How it works, without the
+proofs</h2>
+<p>Sentrix’s consensus is called <strong>Voyager</strong>: delegated
+proof-of-stake to pick who proposes, and a three-phase
+Byzantine-fault-tolerant vote (propose → prevote → precommit) to
+finalize. The important consequence for you as a builder:</p>
+<p><strong>A block is final the moment it commits.</strong> There are no
+probabilistic confirmations, no “wait for 12 blocks,” no reorg risk once
+a transaction lands. When your transaction is in a committed block, it
+is permanent. Target block time is one second.</p>
+<p>Execution is <strong>dual-rail and deterministic</strong>: every
+honest node running the same blocks against the same state produces a
+bit-identical result. State is committed through a binary sparse Merkle
+tree, so the chain can prove any account’s balance or any contract’s
+storage at any height.</p>
+<p>The node is <strong>one Rust binary over one embedded key-value store
+(MDBX)</strong>. An operator runs a single process. There is no separate
+execution client and consensus client to keep in sync — the thing that
+has caused a generation of infrastructure pain on other chains simply
+doesn’t exist here.</p>
+<p>That’s the architecture in three paragraphs. The whitepaper turns
+each of these into formal safety and liveness conditions if you want to
+verify rather than trust.</p>
+<hr />
+<h2 id="srx-in-60-seconds">SRX in 60 seconds</h2>
+<p>SRX is the native coin. It pays fees, secures the chain through
+staking, and is the unit validators earn.</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Symbol</td>
+<td><strong>SRX</strong> (smallest unit: <code>sentri</code>, 1 SRX =
+100,000,000 sentri)</td>
+</tr>
+<tr class="even">
+<td>Native decimals</td>
+<td>8 (Bitcoin-style accounting; wrapped <code>WSRX</code> is standard
+18-decimal ERC-20)</td>
+</tr>
+<tr class="odd">
+<td>Maximum supply</td>
+<td><strong>315,000,000 SRX</strong> — fixed, not governable</td>
+</tr>
+<tr class="even">
+<td>Premine</td>
+<td>63,000,000 SRX (20% of cap), public on-chain across four named
+accounts</td>
+</tr>
+<tr class="odd">
+<td>Block reward</td>
+<td>1 SRX, halving every 126,000,000 blocks (~4 years,
+Bitcoin-cadence)</td>
+</tr>
+<tr class="even">
+<td>Native fee</td>
+<td>flat 0.0001 SRX — <strong>50% burned, 50% to the
+validator</strong></td>
+</tr>
+<tr class="odd">
+<td>EVM fee</td>
+<td>standard EIP-1559 gas</td>
+</tr>
+</tbody>
+</table>
+<p>Two design choices worth calling out:</p>
+<ul>
+<li><strong>Half of every native fee is burned.</strong> It leaves the
+supply permanently. As usage grows, the burn becomes a real
+counterweight to issuance.</li>
+<li><strong>Block rewards are earned by the validators who
+<em>signed</em> the previous block, pro-rata by stake — not just the
+proposer.</strong> This ties revenue to doing the work of consensus, not
+to winning the proposer lottery.</li>
+</ul>
+<p>The full distribution, vesting, and allocation policy lives in the <a
+href="https://sentrixchain.com/docs/tokenomics">tokenomics document</a>.
+The protocol-level constants above are the part that’s set in stone.</p>
+<hr />
+<h2 id="run-it-yourself">Run it yourself</h2>
+<p>A validator is one binary and one key. You stake SRX, you sign
+blocks, you earn rewards; if you go offline or double-sign, you get
+slashed. The active set is selected by stake.</p>
+<p>Point a node at the network, sync, and you’re a fullnode serving RPC.
+Stake above the minimum and register, and you’re a validator candidate.
+There is deliberately no permission gate beyond stake — the whole node
+is open source, so anyone can run the exact software the chain runs.</p>
+<pre><code>git clone https://github.com/sentrix-labs/sentrix
+cargo build --release
+./target/release/sentrix start --genesis genesis/testnet.toml</code></pre>
+<hr />
+<h2 id="where-things-stand">Where things stand</h2>
+<p>Developers trust honesty more than hype, so here is the real
+state:</p>
+<ul>
+<li><strong>Live on mainnet:</strong> Voyager DPoS+BFT consensus, the
+EVM rail, the native token rail, staking and slashing, reward
+distribution, the explorer, the Sourcify verifier, and the public RPC /
+gRPC / WebSocket surface.</li>
+<li><strong>Live on testnet, baking toward mainnet:</strong> ongoing
+consensus hardening and the state-in-trie migration (SIP-6). Testnet is
+where new consensus code proves itself before it touches mainnet.</li>
+<li><strong>Shipped in code, not yet activated:</strong> native NFT
+operations (SRC-721/1155) and several fork-gated features that wait
+behind environment flags until a testnet bake says they’re safe.</li>
+</ul>
+<p>Sentrix ships behind fork gates on purpose: consensus changes are
+dark-launched in the binary, baked on testnet, and only then activated
+on mainnet by a coordinated restart. Nothing consensus-critical flips on
+mainnet without that path.</p>
+<hr />
+<h2 id="read-next">Read next</h2>
+<ul>
+<li><strong>Deep dive:</strong> <a
+href="./sentrix-whitepaper-en.md">Sentrix Whitepaper</a> — formal
+consensus protocol, performance model, adversarial bounds, failure
+handling.</li>
+<li><strong>Code:</strong> <a
+href="https://github.com/sentrix-labs/sentrix">github.com/sentrix-labs/sentrix</a></li>
+<li><strong>Docs:</strong> <a
+href="https://docs.sentrixchain.com">docs.sentrixchain.com</a></li>
+<li><strong>Explorer:</strong> <a
+href="https://scan.sentrixchain.com">scan.sentrixchain.com</a></li>
+<li><strong>Testnet faucet:</strong> <a
+href="https://faucet.sentrixchain.com">faucet.sentrixchain.com</a></li>
+</ul>
+<p>Chain IDs: <strong>7119</strong> (mainnet), <strong>7120</strong>
+(testnet).</p>
+</body>
+</html>
